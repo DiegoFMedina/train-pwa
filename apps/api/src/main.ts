@@ -9,6 +9,14 @@ async function bootstrap() {
     logger: ["error", "warn", "log"],
   });
 
+  // CORS: en dev permitimos el origen del frontend (Next en :3000) con cookies.
+  // En prod, restringir a CORS_ORIGIN explícito.
+  const corsOrigin = process.env.CORS_ORIGIN ?? "http://localhost:3000";
+  app.enableCors({
+    origin: corsOrigin.split(",").map((s) => s.trim()),
+    credentials: true,
+  });
+
   app.use(cookieParser());
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
   app.setGlobalPrefix("api");
