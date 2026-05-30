@@ -2,20 +2,32 @@ import {
   ArgumentMetadata,
   BadRequestException,
   PipeTransform,
+  Paramtype,
 } from "@nestjs/common";
 import type { ZodTypeAny, infer as ZodInfer } from "zod";
 
+interface ZodPipeOptions {
+  /** Tipos de parámetro sobre los que actúa. Default: ['body']. */
+  applyTo?: Paramtype[];
+}
+
 /**
- * Valida payloads contra un schema Zod. Solo actúa sobre @Body() — devuelve
- * sin tocar cualquier otro tipo de parámetro (param, query, custom como
- * @CurrentUser). Esto permite usar @UsePipes(...) a nivel de método sin
- * que el schema "limpie" argumentos que no le corresponden.
+ * Valida payloads contra un schema Zod. Por defecto solo actúa sobre @Body()
+ * — esto evita que `@UsePipes()` a nivel de método pise parámetros custom
+ * como @CurrentUser(). Para validar query strings o params, pasar applyTo.
  */
 export class ZodValidationPipe<T extends ZodTypeAny> implements PipeTransform {
-  constructor(private readonly schema: T) {}
+  private readonly applyTo: ReadonlySet<Paramtype>;
+
+  constructor(
+    private readonly schema: T,
+    options: ZodPipeOptions = {},
+  ) {
+    this.applyTo = new Set(options.applyTo ?? ["body"]);
+  }
 
   transform(value: unknown, metadata: ArgumentMetadata): ZodInfer<T> | unknown {
-    if (metadata.type !== "body") return value;
+    if (!this.applyTo.has(metadata.type)) return value;
 
     const result = this.schema.safeParse(value);
     if (!result.success) {
