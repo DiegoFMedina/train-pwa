@@ -1,11 +1,21 @@
 import type {
   AuthResponse,
   Category,
+  CreateMealPlan,
+  CreateRoutine,
   CreateTransaction,
+  Dish,
+  DishIngredient,
   LoginRequest,
+  MealPlan,
+  MealType,
   RegisterRequest,
+  Routine,
+  RoutineLogStatus,
+  ShoppingList,
   Transaction,
   TransactionFilter,
+  UpdateMealPlan,
   User,
 } from "@mi-centro/shared";
 import { useAuthStore } from "./auth-store";
@@ -179,6 +189,84 @@ export const api = {
         `/finance/summary${month ? `?month=${month}` : ""}`,
       ),
   },
+  routines: {
+    list: () => request<Routine[]>("/routines"),
+    create: (body: CreateRoutine) =>
+      request<Routine>("/routines", { method: "POST", body }),
+    remove: (id: string) =>
+      request<void>(`/routines/${id}`, { method: "DELETE" }),
+    instances: (date?: string) =>
+      request<RoutineInstance[]>(
+        `/routines/instances${date ? `?date=${date}` : ""}`,
+      ),
+    markLog: (body: { routine_id: string; due_on: string; status: RoutineLogStatus }) =>
+      request("/routines/logs", { method: "POST", body }),
+    stats: (id: string, from?: string, to?: string) => {
+      const q = new URLSearchParams();
+      if (from) q.set("from", from);
+      if (to) q.set("to", to);
+      const s = q.toString();
+      return request<RoutineStats>(`/routines/${id}/stats${s ? `?${s}` : ""}`);
+    },
+  },
+  dishes: {
+    list: () => request<Dish[]>("/dishes"),
+    create: (body: { name: string; notes?: string | null; prep_minutes?: number | null }) =>
+      request<Dish>("/dishes", { method: "POST", body }),
+    remove: (id: string) =>
+      request<void>(`/dishes/${id}`, { method: "DELETE" }),
+    listIngredients: (id: string) =>
+      request<DishIngredient[]>(`/dishes/${id}/ingredients`),
+    addIngredient: (id: string, body: { name: string; quantity?: string | null }) =>
+      request<DishIngredient>(`/dishes/${id}/ingredients`, {
+        method: "POST",
+        body,
+      }),
+    removeIngredient: (id: string, ingredientId: string) =>
+      request<void>(`/dishes/${id}/ingredients/${ingredientId}`, {
+        method: "DELETE",
+      }),
+  },
+  mealPlans: {
+    list: (date?: string) =>
+      request<MealPlan[]>(`/meal-plans${date ? `?date=${date}` : ""}`),
+    create: (body: CreateMealPlan) =>
+      request<MealPlan>("/meal-plans", { method: "POST", body }),
+    update: (id: string, body: UpdateMealPlan) =>
+      request<MealPlan>(`/meal-plans/${id}`, { method: "PATCH", body }),
+    remove: (id: string) =>
+      request<void>(`/meal-plans/${id}`, { method: "DELETE" }),
+    shoppingList: (from?: string, to?: string) => {
+      const q = new URLSearchParams();
+      if (from) q.set("from", from);
+      if (to) q.set("to", to);
+      const s = q.toString();
+      return request<ShoppingList>(
+        `/meal-plans/shopping-list${s ? `?${s}` : ""}`,
+      );
+    },
+  },
 };
+
+export interface RoutineInstance {
+  routine: Routine;
+  due_on: string;
+  status: RoutineLogStatus;
+  log_id: string | null;
+}
+
+export interface RoutineStats {
+  routine_id: string;
+  range_from: string;
+  range_to: string;
+  expected: number;
+  done: number;
+  skipped: number;
+  missed: number;
+  completion_rate: number;
+  current_streak: number;
+}
+
+export type { MealType };
 
 export { ApiError };
