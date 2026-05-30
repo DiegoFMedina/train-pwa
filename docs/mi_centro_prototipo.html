@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Mi Centro — Prototipo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&family=Manrope:wght@300..800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#100c0a;
+  --surface:rgba(255,247,238,.045);
+  --surface-2:rgba(255,247,238,.07);
+  --line:rgba(255,238,222,.10);
+  --ink:#F6EFE6;
+  --ink-soft:rgba(246,239,230,.62);
+  --ink-faint:rgba(246,239,230,.38);
+  --accent:#E8B65A;     /* gold */
+  --accent2:#E8765A;    /* coral */
+  --jade:#7FD1A4;
+  --rose:#E89BB0;
+  --r:22px;
+  --ease:cubic-bezier(.22,1,.36,1);
+  --t:520ms;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{
+  font-family:'Manrope',sans-serif;
+  background:#050403;
+  color:var(--ink);
+  display:flex;align-items:center;justify-content:center;
+  min-height:100dvh;padding:24px;
+  overflow:hidden;
+}
+
+/* ===== Device frame ===== */
+.device{
+  position:relative;width:384px;max-width:100%;height:832px;max-height:92dvh;
+  border-radius:54px;padding:13px;
+  background:linear-gradient(160deg,#2a2320,#0d0a08);
+  box-shadow:
+    0 1px 0 rgba(255,255,255,.08) inset,
+    0 50px 90px -30px rgba(0,0,0,.85),
+    0 0 0 1px rgba(0,0,0,.6);
+}
+.viewport{
+  position:relative;width:100%;height:100%;
+  border-radius:42px;overflow:hidden;
+  background:var(--bg);
+  isolation:isolate;
+}
+/* animated gradient atmosphere — shifts in sync with screen accent */
+.viewport::before{
+  content:"";position:absolute;inset:-30%;z-index:0;
+  background:
+    radial-gradient(40% 38% at 22% 18%, color-mix(in oklab,var(--accent) 55%, transparent), transparent 70%),
+    radial-gradient(46% 40% at 84% 30%, color-mix(in oklab,var(--accent2) 45%, transparent), transparent 72%),
+    radial-gradient(60% 50% at 50% 108%, color-mix(in oklab,var(--accent) 30%, transparent), transparent 75%);
+  filter:blur(14px) saturate(120%);
+  opacity:.5;
+  transition:background var(--t) var(--ease),opacity var(--t) var(--ease);
+  animation:drift 22s ease-in-out infinite alternate;
+}
+@keyframes drift{
+  0%{transform:translate(0,0) scale(1)}
+  100%{transform:translate(-3%,2%) scale(1.08)}
+}
+/* grain */
+.viewport::after{
+  content:"";position:absolute;inset:0;z-index:1;pointer-events:none;
+  opacity:.4;mix-blend-mode:overlay;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+}
+
+/* dynamic island */
+.island{
+  position:absolute;top:14px;left:50%;transform:translateX(-50%);
+  width:104px;height:30px;background:#000;border-radius:18px;z-index:40;
+}
+.statusbar{
+  position:absolute;top:0;left:0;right:0;height:54px;z-index:30;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:18px 30px 0;font-size:13px;font-weight:600;letter-spacing:.3px;
+  pointer-events:none;
+}
+
+/* ===== Screens ===== */
+.screen{
+  position:absolute;inset:0;z-index:5;
+  padding:64px 22px 108px;
+  overflow-y:auto;overflow-x:hidden;
+  opacity:0;visibility:hidden;
+  transition:opacity 340ms var(--ease),visibility 0s linear 340ms;
+  -ms-overflow-style:none;scrollbar-width:none;
+}
+.screen::-webkit-scrollbar{display:none}
+.screen.active{opacity:1;visibility:visible;transition:opacity 340ms var(--ease)}
+
+/* synchronized staggered entrance — one timeline, --i drives delay */
+.stagger{
+  opacity:0;transform:translateY(18px) scale(.985);
+  transition:
+    opacity var(--t) var(--ease),
+    transform var(--t) var(--ease);
+  transition-delay:0ms;
+}
+.active .stagger{
+  opacity:1;transform:none;
+  transition-delay:calc(var(--i,0) * 65ms + 90ms);
+}
+
+/* ===== Text masking ===== */
+.mask{
+  display:inline-block;position:relative;
+  font-family:'Fraunces',serif;font-weight:600;line-height:.95;
+  background:linear-gradient(100deg,var(--accent) 0%,var(--accent2) 42%,var(--rose) 70%,var(--jade) 100%);
+  background-size:220% 100%;
+  -webkit-background-clip:text;background-clip:text;
+  color:transparent;
+  -webkit-mask-image:linear-gradient(90deg,#000 0 0);
+  -webkit-mask-size:0% 100%;mask-size:0% 100%;
+  -webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;
+  animation:hueflow 9s linear infinite;
+}
+@keyframes hueflow{0%{background-position:0% 50%}100%{background-position:220% 50%}}
+.active .mask{
+  transition:-webkit-mask-size 900ms var(--ease),mask-size 900ms var(--ease);
+  transition-delay:calc(var(--i,0) * 65ms + 180ms);
+  -webkit-mask-size:120% 100%;mask-size:120% 100%;
+}
+
+.eyebrow{font-size:11px;letter-spacing:.32em;text-transform:uppercase;color:var(--ink-faint);font-weight:700}
+.muted{color:var(--ink-soft)}
+.mono{font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums}
+
+/* ===== Cards ===== */
+.card{
+  position:relative;background:var(--surface);
+  border:1px solid var(--line);border-radius:var(--r);
+  padding:18px;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+  box-shadow:0 1px 0 rgba(255,255,255,.04) inset;
+}
+.card+.card,.stack>*+*{margin-top:14px}
+
+/* ===== Login ===== */
+#login{padding:0;display:flex;flex-direction:column;justify-content:flex-end}
+.login-hero{flex:1;display:flex;flex-direction:column;justify-content:flex-end;padding:0 26px 8px}
+.login-hero .mask{font-size:74px;letter-spacing:-2px}
+.login-sub{margin:20px 0 0;font-size:16px;line-height:1.5;max-width:240px}
+.login-card{
+  margin:26px 18px 26px;padding:24px;border-radius:30px;
+  background:rgba(20,15,12,.55);border:1px solid var(--line);
+  backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+}
+.field{display:flex;flex-direction:column;gap:7px;margin-bottom:14px}
+.field label{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-faint);font-weight:700}
+.field .inp{
+  height:50px;border-radius:14px;border:1px solid var(--line);
+  background:rgba(255,255,255,.04);color:var(--ink);
+  padding:0 16px;font-size:15px;display:flex;align-items:center;
+}
+.field .inp.ph{color:var(--ink-faint)}
+.btn{
+  height:54px;border:none;border-radius:16px;cursor:pointer;width:100%;
+  font-family:'Manrope';font-weight:700;font-size:15.5px;letter-spacing:.2px;
+  color:#1a120a;
+  background:linear-gradient(100deg,var(--accent),var(--accent2));
+  box-shadow:0 10px 30px -10px color-mix(in oklab,var(--accent) 70%, transparent);
+  transition:transform .25s var(--ease),filter .25s var(--ease);
+}
+.btn:active{transform:scale(.97);filter:brightness(1.05)}
+.btn-link{margin-top:16px;text-align:center;font-size:13px;color:var(--ink-soft)}
+.btn-link b{color:var(--accent)}
+
+/* ===== Headers ===== */
+.head{margin-bottom:22px}
+.head .mask{font-size:48px;letter-spacing:-1.5px}
+.head .sub{margin-top:8px;font-size:14px}
+
+/* hero balance */
+.hero-balance{
+  padding:22px;border-radius:26px;overflow:hidden;
+  background:linear-gradient(150deg,rgba(232,182,90,.16),rgba(232,118,90,.10));
+  border:1px solid var(--line);
+}
+.hero-balance .lbl{font-size:11px;letter-spacing:.28em;text-transform:uppercase;color:var(--ink-soft);font-weight:700}
+.hero-balance .amt{font-family:'Fraunces';font-weight:600;font-size:42px;margin-top:6px;letter-spacing:-1px}
+.hero-balance .row{display:flex;gap:18px;margin-top:16px}
+.hero-balance .row div{flex:1}
+.hero-balance .k{font-size:11px;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.12em;font-weight:700}
+.hero-balance .v{font-size:16px;margin-top:3px}
+.up{color:var(--jade)}.down{color:var(--accent2)}
+
+.section-title{display:flex;align-items:center;justify-content:space-between;margin:24px 2px 12px}
+.section-title h3{font-family:'Fraunces';font-weight:600;font-size:19px}
+.section-title a{font-size:12px;color:var(--accent);font-weight:700;text-decoration:none}
+
+/* list rows */
+.row-item{display:flex;align-items:center;gap:14px;padding:14px 16px}
+.ic{
+  width:42px;height:42px;flex:none;border-radius:13px;display:grid;place-items:center;
+  background:var(--surface-2);border:1px solid var(--line);color:var(--accent);
+}
+.ic svg{width:20px;height:20px}
+.row-item .grow{flex:1;min-width:0}
+.row-item .ttl{font-size:14.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row-item .meta{font-size:12px;color:var(--ink-faint);margin-top:2px}
+.row-item .val{font-size:15px;font-weight:700}
+
+/* progress */
+.bar{height:7px;border-radius:99px;background:rgba(255,255,255,.07);overflow:hidden;margin-top:10px}
+.bar i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--accent),var(--accent2))}
+.goal{padding:16px 18px}
+.goal .top{display:flex;justify-content:space-between;align-items:baseline}
+.goal .top b{font-size:14.5px}
+.goal .pct{font-size:12px;color:var(--ink-soft);font-weight:700}
+
+/* chips */
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
+.chip{
+  font-size:11px;font-weight:700;letter-spacing:.04em;
+  padding:6px 11px;border-radius:99px;border:1px solid var(--line);
+  background:var(--surface-2);color:var(--ink-soft);display:flex;align-items:center;gap:6px;
+}
+.chip.on{color:#1a120a;background:linear-gradient(100deg,var(--accent),var(--accent2));border-color:transparent}
+.chip svg{width:13px;height:13px}
+
+/* checklist */
+.check{display:flex;align-items:center;gap:14px;padding:14px 16px}
+.box{width:24px;height:24px;border-radius:8px;border:2px solid var(--line);flex:none;display:grid;place-items:center;transition:.25s var(--ease)}
+.check.done .box{background:var(--jade);border-color:var(--jade)}
+.box svg{width:14px;height:14px;color:#0d0a08;opacity:0;transform:scale(.5);transition:.25s var(--ease)}
+.check.done .box svg{opacity:1;transform:scale(1)}
+.check .grow .ttl{font-size:14.5px;font-weight:600}
+.check.done .grow .ttl{color:var(--ink-faint);text-decoration:line-through}
+.check .time{font-size:12px;color:var(--ink-faint);font-weight:700}
+
+/* meal timeline */
+.meal{display:flex;gap:14px;padding:16px}
+.meal .when{width:54px;flex:none;text-align:right}
+.meal .when .h{font-size:14px;font-weight:800;font-family:'JetBrains Mono'}
+.meal .when .t{font-size:10px;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.1em;font-weight:700;margin-top:2px}
+.meal .dot{width:2px;background:linear-gradient(var(--accent),transparent);border-radius:2px;flex:none;position:relative}
+.meal .dot::before{content:"";position:absolute;top:2px;left:-3px;width:8px;height:8px;border-radius:99px;background:var(--accent)}
+.meal .body{flex:1}
+.meal .body .name{font-size:15px;font-weight:700}
+.meal .body .det{font-size:12px;color:var(--ink-soft);margin-top:3px}
+
+/* streak ring */
+.streak{display:flex;align-items:center;gap:16px;padding:18px}
+.ring{width:60px;height:60px;flex:none;position:relative}
+.ring svg{transform:rotate(-90deg)}
+.ring .n{position:absolute;inset:0;display:grid;place-items:center;font-weight:800;font-size:18px;font-family:'JetBrains Mono'}
+
+/* ===== Bottom nav ===== */
+.nav{
+  position:absolute;left:14px;right:14px;bottom:14px;z-index:35;height:70px;
+  border-radius:26px;display:flex;align-items:center;justify-content:space-around;
+  background:rgba(16,12,10,.62);border:1px solid var(--line);
+  backdrop-filter:blur(22px) saturate(140%);-webkit-backdrop-filter:blur(22px) saturate(140%);
+  box-shadow:0 14px 40px -16px rgba(0,0,0,.7);
+}
+.nav.hidden{transform:translateY(120%);opacity:0;pointer-events:none;transition:.5s var(--ease)}
+.nav button{
+  background:none;border:none;cursor:pointer;color:var(--ink-faint);
+  display:flex;flex-direction:column;align-items:center;gap:5px;font-family:'Manrope';
+  font-size:10px;font-weight:700;letter-spacing:.04em;flex:1;height:100%;justify-content:center;
+  transition:color .3s var(--ease);
+}
+.nav button svg{width:23px;height:23px;transition:transform .35s var(--ease)}
+.nav button.on{color:var(--accent)}
+.nav button.on svg{transform:translateY(-2px) scale(1.08)}
+.nav .pill{
+  position:absolute;top:9px;height:4px;width:26px;border-radius:99px;
+  background:linear-gradient(90deg,var(--accent),var(--accent2));
+  transition:left .45s var(--ease);
+}
+</style>
+</head>
+<body>
+<div class="device">
+  <div class="viewport" id="vp">
+    <div class="island"></div>
+    <div class="statusbar"><span>9:41</span><span>􀙇 􀛨 􀛪</span></div>
+
+    <!-- ===================== LOGIN ===================== -->
+    <section class="screen active" id="login" data-accent="gold">
+      <div class="login-hero">
+        <div class="eyebrow stagger" style="--i:0">Tu control personal</div>
+        <h1 class="stagger" style="--i:1"><span class="mask">Mi<br>Centro</span></h1>
+        <p class="login-sub muted stagger" style="--i:2">Finanzas, rutinas y dieta en un solo lugar. Ordenado. Tuyo.</p>
+      </div>
+      <div class="login-card stagger" style="--i:3">
+        <div class="field">
+          <label>Correo</label>
+          <div class="inp ph">tucorreo@ejemplo.com</div>
+        </div>
+        <div class="field">
+          <label>Contraseña</label>
+          <div class="inp ph">••••••••••</div>
+        </div>
+        <button class="btn" onclick="enter()">Entrar</button>
+        <div class="btn-link">¿Sin cuenta? <b>Crear una</b></div>
+      </div>
+    </section>
+
+    <!-- ===================== HOY ===================== -->
+    <section class="screen" id="hoy" data-accent="full">
+      <div class="head">
+        <div class="eyebrow stagger" style="--i:0">Jueves 29 · Buenos días</div>
+        <h1 class="stagger" style="--i:1"><span class="mask" style="font-size:46px">Hoy, Diego</span></h1>
+      </div>
+
+      <div class="hero-balance stagger" style="--i:2">
+        <div class="lbl">Balance del mes</div>
+        <div class="amt mono">$842.300</div>
+        <div class="row">
+          <div><div class="k">Ingresos</div><div class="v up mono">+$1.340.000</div></div>
+          <div><div class="k">Gastos</div><div class="v down mono">−$497.700</div></div>
+        </div>
+      </div>
+
+      <div class="section-title stagger" style="--i:3"><h3>Pendientes de hoy</h3><span class="muted" style="font-size:12px">2 / 4</span></div>
+      <div class="card stack stagger" style="--i:4">
+        <div class="check done" onclick="this.classList.toggle('done')">
+          <div class="box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12l5 5L20 7"/></svg></div>
+          <div class="grow"><div class="ttl">Rutina de mañana</div></div><div class="time">07:00</div>
+        </div>
+        <div class="check done" onclick="this.classList.toggle('done')">
+          <div class="box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12l5 5L20 7"/></svg></div>
+          <div class="grow"><div class="ttl">Almuerzo: Pollo al curry</div></div><div class="time">13:30</div>
+        </div>
+        <div class="check" onclick="this.classList.toggle('done')">
+          <div class="box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12l5 5L20 7"/></svg></div>
+          <div class="grow"><div class="ttl">Gimnasio — Pierna</div></div><div class="time">19:00</div>
+        </div>
+        <div class="check" onclick="this.classList.toggle('done')">
+          <div class="box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12l5 5L20 7"/></svg></div>
+          <div class="grow"><div class="ttl">Cena: Ensalada quinoa</div></div><div class="time">21:00</div>
+        </div>
+      </div>
+
+      <div class="section-title stagger" style="--i:5"><h3>Meta en curso</h3><a onclick="go('finanzas')">Ver</a></div>
+      <div class="card goal stagger" style="--i:6">
+        <div class="top"><b>Viaje al sur</b><span class="pct mono">68%</span></div>
+        <div class="bar"><i style="width:68%"></i></div>
+        <div class="muted" style="font-size:12px;margin-top:10px">$680.000 de $1.000.000 · faltan 2 meses</div>
+      </div>
+    </section>
+
+    <!-- ===================== FINANZAS ===================== -->
+    <section class="screen" id="finanzas" data-accent="jade">
+      <div class="head">
+        <div class="eyebrow stagger" style="--i:0">Mayo 2026</div>
+        <h1 class="stagger" style="--i:1"><span class="mask">Finanzas</span></h1>
+      </div>
+
+      <div class="hero-balance stagger" style="--i:2">
+        <div class="lbl">Disponible este mes</div>
+        <div class="amt mono">$842.300</div>
+        <div class="bar"><i style="width:37%"></i></div>
+        <div class="muted" style="font-size:12px;margin-top:10px">37% del presupuesto usado</div>
+      </div>
+
+      <div class="section-title stagger" style="--i:3"><h3>Metas</h3><a>+ Nueva</a></div>
+      <div class="card goal stagger" style="--i:4">
+        <div class="top"><b>Viaje al sur</b><span class="pct mono">68%</span></div>
+        <div class="bar"><i style="width:68%"></i></div>
+        <div class="muted" style="font-size:12px;margin-top:8px">$680.000 / $1.000.000</div>
+      </div>
+      <div class="card goal stagger" style="--i:5">
+        <div class="top"><b>Fondo emergencia</b><span class="pct mono">41%</span></div>
+        <div class="bar"><i style="width:41%"></i></div>
+        <div class="muted" style="font-size:12px;margin-top:8px">$1.230.000 / $3.000.000</div>
+      </div>
+
+      <div class="section-title stagger" style="--i:6"><h3>Movimientos</h3><a>Todos</a></div>
+      <div class="card stagger" style="--i:7">
+        <div class="row-item">
+          <div class="ic" style="color:var(--jade)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12l7-7 7 7"/></svg></div>
+          <div class="grow"><div class="ttl">Sueldo</div><div class="meta">Recurrente · 05 may</div></div>
+          <div class="val up mono">+1.340.000</div>
+        </div>
+        <div class="row-item">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9h18M3 9l2-5h14l2 5M5 9v10h14V9"/></svg></div>
+          <div class="grow"><div class="ttl">Supermercado</div><div class="meta">Comida · 24 may</div></div>
+          <div class="val down mono">−84.200</div>
+        </div>
+        <div class="row-item">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4zM4 10h16"/></svg></div>
+          <div class="grow"><div class="ttl">Arriendo</div><div class="meta">Recurrente · 01 may</div></div>
+          <div class="val down mono">−320.000</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== RUTINAS ===================== -->
+    <section class="screen" id="rutinas" data-accent="coral">
+      <div class="head">
+        <div class="eyebrow stagger" style="--i:0">Tus hábitos</div>
+        <h1 class="stagger" style="--i:1"><span class="mask">Rutinas</span></h1>
+      </div>
+
+      <div class="card streak stagger" style="--i:2">
+        <div class="ring">
+          <svg width="60" height="60" viewBox="0 0 60 60">
+            <circle cx="30" cy="30" r="25" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="6"/>
+            <circle cx="30" cy="30" r="25" fill="none" stroke="var(--accent)" stroke-width="6" stroke-linecap="round" stroke-dasharray="157" stroke-dashoffset="38"/>
+          </svg>
+          <div class="n">12</div>
+        </div>
+        <div class="grow">
+          <div style="font-weight:700;font-size:15px">Racha de 12 días 🔥</div>
+          <div class="muted" style="font-size:12.5px;margin-top:3px">76% de cumplimiento esta semana</div>
+        </div>
+      </div>
+
+      <div class="section-title stagger" style="--i:3"><h3>Hoy</h3><a>+ Nueva</a></div>
+      <div class="card stagger" style="--i:4">
+        <div class="check done" onclick="this.classList.toggle('done')">
+          <div class="box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12l5 5L20 7"/></svg></div>
+          <div class="grow"><div class="ttl">Rutina de mañana</div>
+            <div class="chips"><span class="chip on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v9m0 0a3 3 0 003-3V6a3 3 0 00-6 0v5a3 3 0 003 3z"/></svg>Notificar</span></div>
+          </div>
+          <div class="time">07:00</div>
+        </div>
+      </div>
+      <div class="card stagger" style="--i:5">
+        <div class="check" onclick="this.classList.toggle('done')">
+          <div class="box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12l5 5L20 7"/></svg></div>
+          <div class="grow"><div class="ttl">Gimnasio — Pierna</div>
+            <div class="chips">
+              <span class="chip">L M <b style="color:var(--accent)">·</b> V</span>
+              <span class="chip on">Vibrar</span>
+            </div>
+          </div>
+          <div class="time">19:00</div>
+        </div>
+      </div>
+      <div class="card stagger" style="--i:6">
+        <div class="check" onclick="this.classList.toggle('done')">
+          <div class="box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12l5 5L20 7"/></svg></div>
+          <div class="grow"><div class="ttl">Leer 20 min</div>
+            <div class="chips"><span class="chip">Diario</span><span class="chip">Silencio</span></div>
+          </div>
+          <div class="time">22:30</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== DIETA ===================== -->
+    <section class="screen" id="dieta" data-accent="rose">
+      <div class="head">
+        <div class="eyebrow stagger" style="--i:0">Plan del día</div>
+        <h1 class="stagger" style="--i:1"><span class="mask">Dieta</span></h1>
+      </div>
+
+      <div class="card stagger" style="--i:2">
+        <div class="row-item" style="padding:4px 2px">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/><circle cx="12" cy="12" r="4"/></svg></div>
+          <div class="grow"><div class="ttl">Aviso matutino activo</div><div class="meta">Te recuerdo qué cocinar a las 08:00</div></div>
+        </div>
+      </div>
+
+      <div class="section-title stagger" style="--i:3"><h3>Comidas de hoy</h3><a>Editar</a></div>
+      <div class="card stagger" style="--i:4">
+        <div class="meal">
+          <div class="when"><div class="h">08:00</div><div class="t">Desayuno</div></div>
+          <div class="dot"></div>
+          <div class="body"><div class="name">Avena + frutos rojos</div><div class="det">Listo · sin cocción</div></div>
+        </div>
+      </div>
+      <div class="card stagger" style="--i:5">
+        <div class="meal">
+          <div class="when"><div class="h">13:30</div><div class="t">Almuerzo</div></div>
+          <div class="dot"></div>
+          <div class="body"><div class="name">Pollo al curry</div><div class="det">Cocinar 12:45 · ~30 min prep</div></div>
+        </div>
+      </div>
+      <div class="card stagger" style="--i:6">
+        <div class="meal">
+          <div class="when"><div class="h">21:00</div><div class="t">Cena</div></div>
+          <div class="dot"></div>
+          <div class="body"><div class="name">Ensalada de quinoa</div><div class="det">Cocinar 20:30 · ~20 min prep</div></div>
+        </div>
+      </div>
+
+      <div class="section-title stagger" style="--i:7"><h3>Lista de compras</h3><a>Generar</a></div>
+      <div class="card stagger" style="--i:8">
+        <div class="row-item" style="padding:8px 4px"><div class="muted" style="font-size:13px">Quinoa · Pechuga · Leche de coco · Frutos rojos · Avena</div></div>
+      </div>
+    </section>
+
+    <!-- ===================== NAV ===================== -->
+    <nav class="nav hidden" id="nav">
+      <span class="pill" id="pill"></span>
+      <button data-go="hoy" class="on" onclick="go('hoy')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l9-8 9 8M5 10v10h14V10"/></svg>Hoy</button>
+      <button data-go="finanzas" onclick="go('finanzas')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h4l2 6 4-14 2 8h6"/></svg>Finanzas</button>
+      <button data-go="rutinas" onclick="go('rutinas')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Rutinas</button>
+      <button data-go="dieta" onclick="go('dieta')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3v8a3 3 0 006 0V3M9 3v18M18 3c-2 0-3 3-3 6s1 4 3 4v8"/></svg>Dieta</button>
+    </nav>
+  </div>
+</div>
+
+<script>
+const ACCENTS = {
+  gold : ['#E8B65A','#E8765A'],
+  full : ['#E8B65A','#E8765A'],
+  jade : ['#7FD1A4','#E8B65A'],
+  coral: ['#E8765A','#E8B65A'],
+  rose : ['#E89BB0','#E8765A'],
+};
+const root = document.documentElement;
+
+function setAccent(name){
+  const [a,b] = ACCENTS[name] || ACCENTS.full;
+  root.style.setProperty('--accent', a);
+  root.style.setProperty('--accent2', b);
+}
+
+function replay(screen){
+  // force the synchronized entrance to restart every time
+  screen.classList.remove('active');
+  void screen.offsetWidth;          // reflow
+  screen.classList.add('active');
+}
+
+function go(id){
+  const cur = document.querySelector('.screen.active');
+  const next = document.getElementById(id);
+  if(cur === next) return;
+  if(cur) cur.classList.remove('active');
+  setAccent(next.dataset.accent);
+  // small offset so the page-wide accent + atmosphere shift reads as one motion
+  requestAnimationFrame(()=> requestAnimationFrame(()=> replay(next)));
+
+  // nav state
+  document.querySelectorAll('.nav button').forEach(btn=>{
+    btn.classList.toggle('on', btn.dataset.go === id);
+  });
+  movePill();
+}
+
+function movePill(){
+  const active = document.querySelector('.nav button.on');
+  const pill = document.getElementById('pill');
+  if(active){
+    const r = active.getBoundingClientRect();
+    const nr = active.parentElement.getBoundingClientRect();
+    pill.style.left = (r.left - nr.left + r.width/2 - 13) + 'px';
+  }
+}
+
+function enter(){
+  const login = document.getElementById('login');
+  login.classList.remove('active');
+  document.getElementById('nav').classList.remove('hidden');
+  setAccent('full');
+  setTimeout(()=>{ go('hoy'); movePill(); }, 120);
+}
+
+window.addEventListener('resize', movePill);
+</script>
+</body>
+</html>

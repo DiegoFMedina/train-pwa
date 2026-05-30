@@ -1,0 +1,20 @@
+{
+  "name": "mi-centro",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Mi Centro — PWA personal de finanzas, rutinas y dieta. Offline-first, multi-dispositivo.",
+  "packageManager": "pnpm@10.5.2",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "build": "pnpm -r build",
+    "dev": "pnpm -r --parallel dev",
+    "lint": "pnpm -r lint",
+    "test": "pnpm -r test",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3"
+  }
+}
