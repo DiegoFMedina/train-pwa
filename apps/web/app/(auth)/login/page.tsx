@@ -30,7 +30,7 @@ export default function LoginPage() {
           : await api.auth.register({ name, email, password });
       setAccessToken(r.tokens.access_token);
       setUser(r.user);
-      router.replace("/finanzas");
+      router.replace("/hoy");
     } catch (e) {
       if (e instanceof ApiError) {
         const body = e.body as { message?: string; issues?: Array<{ message: string }> } | null;

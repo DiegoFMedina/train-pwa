@@ -1,70 +1,47 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useState } from "react";
 import { api } from "@/lib/api";
-import { useAuthStore } from "@/lib/auth-store";
-import { currentMonth, money, shortDate, signedMoney } from "@/lib/format";
+import { currentMonth, money } from "@/lib/format";
+import { CategoriesSheet } from "./categories-sheet";
 import { NewTransactionForm } from "./new-transaction";
+import { TransactionItem } from "./transaction-item";
 
 export default function FinanzasPage() {
-  const router = useRouter();
-  const user = useAuthStore((s) => s.user);
-  const clear = useAuthStore((s) => s.clear);
-
-  useEffect(() => {
-    if (!user) router.replace("/login");
-  }, [user, router]);
-
+  const [catsOpen, setCatsOpen] = useState(false);
   const month = currentMonth();
+
   const summary = useQuery({
     queryKey: ["summary", month],
     queryFn: () => api.summary.monthly(month),
-    enabled: !!user,
   });
   const txs = useQuery({
     queryKey: ["transactions", { from: `${month}-01` }],
     queryFn: () => api.transactions.list({ from: `${month}-01` }),
-    enabled: !!user,
   });
   const cats = useQuery({
     queryKey: ["categories"],
     queryFn: () => api.categories.list(),
-    enabled: !!user,
   });
-
-  if (!user) return null;
 
   const catMap = new Map((cats.data ?? []).map((c) => [c.id, c]));
   const used = summary.data
-    ? Math.min(100, Math.round((summary.data.expense / Math.max(1, summary.data.income)) * 100))
+    ? Math.min(
+        100,
+        Math.round((summary.data.expense / Math.max(1, summary.data.income)) * 100),
+      )
     : 0;
 
   return (
-    <main className="mx-auto max-w-md min-h-dvh px-5 pt-10 pb-24">
-      <header className="mb-7 flex items-start justify-between">
-        <div>
-          <p className="eyebrow mb-1.5">
-            {new Date().toLocaleDateString("es-CL", { month: "long", year: "numeric" })}
-          </p>
-          <h1
-            className="text-5xl font-light"
-            style={{ fontFamily: "var(--font-serif)" }}
-          >
-            Finanzas
-          </h1>
-        </div>
-        <button
-          onClick={async () => {
-            await api.auth.logout().catch(() => null);
-            clear();
-            router.replace("/login");
-          }}
-          className="pill"
-        >
-          Salir
-        </button>
+    <main className="mx-auto max-w-md min-h-dvh px-5 pt-10 pb-32">
+      <header className="mb-7">
+        <p className="eyebrow mb-1.5">
+          {new Date().toLocaleDateString("es-CL", { month: "long", year: "numeric" })}
+        </p>
+        <h1 className="text-5xl font-light" style={{ fontFamily: "var(--font-serif)" }}>
+          Finanzas
+        </h1>
       </header>
 
       {/* Hero balance */}
@@ -124,6 +101,12 @@ export default function FinanzasPage() {
             <h2 className="text-sm font-semibold text-[color:var(--color-ink-soft)]">
               Por categoría
             </h2>
+            <button
+              onClick={() => setCatsOpen(true)}
+              className="text-xs text-[color:var(--color-accent)] font-medium"
+            >
+              Gestionar
+            </button>
           </div>
           <div className="card space-y-3">
             {summary.data!.by_category.map((b, i) => (
@@ -167,17 +150,27 @@ export default function FinanzasPage() {
         <NewTransactionForm categories={cats.data ?? []} />
       </section>
 
-      {/* Recent transactions */}
+      {/* Transactions list — header con CTA categorías cuando no hay summary */}
       <section>
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-semibold text-[color:var(--color-ink-soft)]">
             Movimientos
           </h2>
-          {txs.data && (
-            <span className="text-xs text-[color:var(--color-ink-faint)]">
-              {txs.data.length}
-            </span>
-          )}
+          <div className="flex items-center gap-3">
+            {(summary.data?.by_category.length ?? 0) === 0 && (
+              <button
+                onClick={() => setCatsOpen(true)}
+                className="text-xs text-[color:var(--color-accent)] font-medium"
+              >
+                Gestionar categorías
+              </button>
+            )}
+            {txs.data && (
+              <span className="text-xs text-[color:var(--color-ink-faint)]">
+                {txs.data.length}
+              </span>
+            )}
+          </div>
         </div>
 
         {txs.isLoading ? (
@@ -187,46 +180,23 @@ export default function FinanzasPage() {
             Sin movimientos este mes — agrega el primero arriba.
           </div>
         ) : (
-          <div className="card space-y-3">
-            {txs.data!.map((t) => {
-              const cat = t.category_id ? catMap.get(t.category_id) : null;
-              return (
-                <div key={t.id} className="flex items-center gap-3">
-                  <span
-                    className="w-9 h-9 rounded-full grid place-items-center text-base flex-shrink-0"
-                    style={{
-                      background: "var(--color-surface-2)",
-                      color:
-                        t.kind === "income"
-                          ? "var(--color-up)"
-                          : "var(--color-down)",
-                    }}
-                  >
-                    {t.kind === "income" ? "↑" : "↓"}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-medium">
-                      {t.description ?? cat?.name ?? "—"}
-                    </p>
-                    <p className="text-xs text-[color:var(--color-ink-faint)]">
-                      {cat?.name ?? "Sin categoría"} · {shortDate(t.occurred_on)}
-                    </p>
-                  </div>
-                  <p
-                    className={`mono text-sm font-medium ${
-                      t.kind === "income"
-                        ? "text-[color:var(--color-up)]"
-                        : "text-[color:var(--color-down)]"
-                    }`}
-                  >
-                    {signedMoney(t.amount, t.kind, t.currency)}
-                  </p>
-                </div>
-              );
-            })}
+          <div className="card space-y-1">
+            {txs.data!.map((t) => (
+              <TransactionItem
+                key={t.id}
+                tx={t}
+                category={t.category_id ? catMap.get(t.category_id) ?? null : null}
+              />
+            ))}
           </div>
         )}
       </section>
+
+      <CategoriesSheet
+        open={catsOpen}
+        onClose={() => setCatsOpen(false)}
+        categories={cats.data ?? []}
+      />
     </main>
   );
 }

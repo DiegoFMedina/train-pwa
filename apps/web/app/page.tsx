@@ -9,7 +9,7 @@ export default function HomePage() {
   const user = useAuthStore((s) => s.user);
 
   useEffect(() => {
-    router.replace(user ? "/finanzas" : "/login");
+    router.replace(user ? "/hoy" : "/login");
   }, [user, router]);
 
   return null;

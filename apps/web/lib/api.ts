@@ -134,8 +134,18 @@ export const api = {
   },
   categories: {
     list: () => request<Category[]>("/categories"),
-    create: (body: { name: string; kind: "income" | "expense"; color?: string | null; icon?: string | null }) =>
-      request<Category>("/categories", { method: "POST", body }),
+    create: (body: {
+      name: string;
+      kind: "income" | "expense";
+      color?: string | null;
+      icon?: string | null;
+    }) => request<Category>("/categories", { method: "POST", body }),
+    update: (
+      id: string,
+      body: { name?: string; kind?: "income" | "expense"; color?: string | null; icon?: string | null },
+    ) => request<Category>(`/categories/${id}`, { method: "PATCH", body }),
+    remove: (id: string) =>
+      request<void>(`/categories/${id}`, { method: "DELETE" }),
   },
   transactions: {
     list: (filter: TransactionFilter = {}) => {
@@ -149,6 +159,17 @@ export const api = {
     },
     create: (body: CreateTransaction) =>
       request<Transaction>("/transactions", { method: "POST", body }),
+    update: (
+      id: string,
+      body: {
+        kind?: "income" | "expense";
+        amount?: number;
+        currency?: string;
+        category_id?: string | null;
+        description?: string | null;
+        occurred_on?: string;
+      },
+    ) => request<Transaction>(`/transactions/${id}`, { method: "PATCH", body }),
     remove: (id: string) =>
       request<void>(`/transactions/${id}`, { method: "DELETE" }),
   },
