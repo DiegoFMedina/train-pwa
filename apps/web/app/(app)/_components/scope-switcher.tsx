@@ -7,10 +7,8 @@ import { useAuthStore } from "@/lib/auth-store";
 import { useScopeStore } from "@/lib/scope-store";
 
 /**
- * Pill flotante en el top center con efecto Dynamic Island.
- * Solo se muestra si el user tiene una pareja vinculada.
- * Al cambiar de scope, invalida toda la cache para que las pantallas
- * recarguen con el contexto nuevo.
+ * Switcher Personal / Compartido. Integrado en el AppHeader sticky.
+ * Solo se renderiza si el user tiene una pareja vinculada.
  */
 export function ScopeSwitcher() {
   const qc = useQueryClient();
@@ -27,12 +25,10 @@ export function ScopeSwitcher() {
     staleTime: 30_000,
   });
 
-  // Sincroniza el flag hasCouple en el store y degrada a personal si perdió la pareja.
   useEffect(() => {
     setHasCouple(!!couple.data);
   }, [couple.data, setHasCouple]);
 
-  // Cierra el menú al click fuera
   useEffect(() => {
     if (!open) return;
     const onDocClick = (e: MouseEvent) => {
@@ -45,16 +41,17 @@ export function ScopeSwitcher() {
   }, [open]);
 
   if (!me) return null;
-  if (!couple.data) return null; // sin pareja, no hay switcher
+  if (!couple.data) return null;
 
   const isCouple = scope === "couple";
   const partner = couple.data.members.find((m) => m.user_id !== me.id);
-  const coupleLabel = partner ? `Con ${partner.user_name.split(" ")[0]}` : couple.data.name;
+  const coupleLabel = partner
+    ? `Con ${partner.user_name.split(" ")[0]}`
+    : couple.data.name;
 
   const select = (next: "personal" | "couple") => {
     if (next !== scope) {
       setScope(next);
-      // Invalida todas las queries de Finanzas — la próxima request mandará X-Scope nuevo
       qc.invalidateQueries({ queryKey: ["categories"] });
       qc.invalidateQueries({ queryKey: ["transactions"] });
       qc.invalidateQueries({ queryKey: ["recurring"] });
@@ -65,22 +62,19 @@ export function ScopeSwitcher() {
   };
 
   return (
-    <div
-      ref={ref}
-      className="fixed z-40 top-[calc(env(safe-area-inset-top,0)+12px)] left-1/2 -translate-x-1/2"
-    >
+    <div ref={ref} className="relative">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-haspopup="listbox"
-        className="flex items-center gap-2 px-4 py-2 rounded-full border bg-black/80 backdrop-blur-xl text-sm font-medium transition-all active:scale-95"
+        className="flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm font-medium transition-colors active:scale-95"
         style={{
+          background: "color-mix(in oklab, var(--color-bg) 60%, transparent)",
           borderColor: isCouple
             ? "color-mix(in oklab, var(--color-jade) 40%, transparent)"
             : "color-mix(in oklab, var(--color-accent) 35%, transparent)",
           color: isCouple ? "var(--color-jade)" : "var(--color-accent)",
-          boxShadow: "0 10px 28px -10px rgba(0,0,0,0.75)",
         }}
       >
         <span
@@ -89,7 +83,7 @@ export function ScopeSwitcher() {
             background: isCouple ? "var(--color-jade)" : "var(--color-accent)",
           }}
         />
-        <span className="font-semibold tracking-wide">
+        <span className="font-semibold tracking-wide truncate max-w-[120px]">
           {isCouple ? coupleLabel : "Personal"}
         </span>
         <svg
@@ -97,7 +91,9 @@ export function ScopeSwitcher() {
           fill="none"
           stroke="currentColor"
           strokeWidth="2.5"
-          className={`w-3 h-3 transition-transform ${open ? "rotate-180" : ""}`}
+          className={`w-3 h-3 transition-transform flex-shrink-0 ${
+            open ? "rotate-180" : ""
+          }`}
           aria-hidden
         >
           <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
@@ -107,7 +103,7 @@ export function ScopeSwitcher() {
       {open && (
         <div
           role="listbox"
-          className="absolute top-[calc(100%+8px)] left-1/2 -translate-x-1/2 min-w-[260px] rounded-3xl border border-[color:var(--color-line)] bg-black/85 backdrop-blur-2xl p-2 shadow-2xl"
+          className="absolute top-[calc(100%+8px)] left-0 min-w-[240px] rounded-2xl border border-[color:var(--color-line)] bg-[color:var(--color-bg)]/95 backdrop-blur-2xl p-2 shadow-2xl"
           style={{ boxShadow: "0 24px 60px -20px rgba(0,0,0,0.8)" }}
         >
           <ScopeOption
@@ -149,7 +145,7 @@ function ScopeOption({
       onClick={onSelect}
       role="option"
       aria-selected={active}
-      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl text-left transition ${
+      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition ${
         active
           ? "bg-[color:var(--color-surface-2)]"
           : "hover:bg-[color:var(--color-surface)]"

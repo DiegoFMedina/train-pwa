@@ -83,7 +83,7 @@ export default function DietaPage() {
   };
 
   return (
-    <main className="mx-auto max-w-md min-h-dvh px-5 pt-16 pb-32">
+    <main className="mx-auto max-w-md px-5 pt-6 pb-32">
       {/* Header */}
       <header className="mb-6">
         <p className="eyebrow mb-1.5">Tu mes en comidas</p>

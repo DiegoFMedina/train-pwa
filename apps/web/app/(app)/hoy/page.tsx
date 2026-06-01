@@ -39,7 +39,7 @@ export default function HoyPage() {
   });
 
   return (
-    <main className="mx-auto max-w-md min-h-dvh px-5 pt-16 pb-32">
+    <main className="mx-auto max-w-md px-5 pt-6 pb-32">
       <header className="mb-7">
         <p className="eyebrow mb-1.5">{todayLong()}</p>
         <h1 className="text-5xl font-light" style={{ fontFamily: "var(--font-serif)" }}>

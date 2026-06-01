@@ -4,13 +4,19 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuthStore } from "@/lib/auth-store";
 
+/**
+ * Avatar circular del usuario, integrado al AppHeader. Lleva a /perfil.
+ * Oculto en /perfil para evitar redundancia.
+ */
 export function UserAvatarButton() {
   const user = useAuthStore((s) => s.user);
   const pathname = usePathname();
 
   if (!user) return null;
-  // En la propia pantalla de perfil no mostramos el avatar (redundante).
-  if (pathname?.startsWith("/perfil")) return null;
+  if (pathname?.startsWith("/perfil")) {
+    // Spacer para mantener el balance del header
+    return <span className="w-9 h-9 block" aria-hidden />;
+  }
 
   const initial = (user.name[0] ?? "?").toUpperCase();
 
@@ -18,7 +24,7 @@ export function UserAvatarButton() {
     <Link
       href="/perfil"
       aria-label={`Abrir perfil de ${user.name}`}
-      className="fixed z-30 top-[calc(env(safe-area-inset-top,0)+12px)] right-4 w-9 h-9 rounded-full grid place-items-center text-sm font-bold text-[#1a120a] shadow-lg active:scale-95 transition-transform"
+      className="w-9 h-9 rounded-full grid place-items-center text-sm font-bold text-[#1a120a] shadow-md active:scale-95 transition-transform flex-shrink-0"
       style={{
         background:
           "linear-gradient(135deg, var(--color-accent), var(--color-accent-2))",
