@@ -14,7 +14,7 @@ export function CoupleSection() {
 
   if (couple.isLoading) {
     return (
-      <section className="mt-8">
+      <section>
         <h2 className="text-sm font-semibold text-[color:var(--color-ink-soft)] mb-3">
           Pareja
         </h2>
@@ -24,7 +24,7 @@ export function CoupleSection() {
   }
 
   return (
-    <section className="mt-8">
+    <section>
       <h2 className="text-sm font-semibold text-[color:var(--color-ink-soft)] mb-3">
         Pareja
       </h2>

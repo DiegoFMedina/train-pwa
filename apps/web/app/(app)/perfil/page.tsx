@@ -56,15 +56,19 @@ export default function PerfilPage() {
 
   return (
     <main className="mx-auto max-w-md px-5 pt-6 pb-32">
+      {/* Header */}
       <header className="mb-7">
         <p className="eyebrow mb-1.5">Tu cuenta</p>
-        <h1 className="text-5xl font-light" style={{ fontFamily: "var(--font-serif)" }}>
+        <h1
+          className="text-5xl font-light"
+          style={{ fontFamily: "var(--font-serif)" }}
+        >
           Perfil
         </h1>
       </header>
 
-      {/* Tarjeta de identidad */}
-      <section className="card mb-6 flex items-center gap-4">
+      {/* 1. Identidad */}
+      <section className="card mb-8 flex items-center gap-4">
         <span
           className="w-14 h-14 rounded-full grid place-items-center text-2xl font-bold text-[#1a120a] flex-shrink-0"
           style={{
@@ -83,7 +87,10 @@ export default function PerfilPage() {
         </div>
       </section>
 
-      {/* Preferencias */}
+      {/* 2. Pareja — arriba, feature distintiva */}
+      <CoupleSection />
+
+      {/* 3 + 4. Preferencias + Notificaciones (form único) */}
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -96,7 +103,7 @@ export default function PerfilPage() {
             quiet_hours_end: quietEnd || null,
           });
         }}
-        className="space-y-5"
+        className="space-y-6 mt-8"
       >
         <section>
           <h2 className="text-sm font-semibold text-[color:var(--color-ink-soft)] mb-3">
@@ -163,11 +170,12 @@ export default function PerfilPage() {
 
         <section>
           <h2 className="text-sm font-semibold text-[color:var(--color-ink-soft)] mb-3">
-            Horas de silencio
+            Notificaciones
           </h2>
           <div className="card">
             <p className="text-xs text-[color:var(--color-ink-faint)] mb-3">
-              Las notificaciones no se dispararán en este rango.
+              Horas de silencio — las notificaciones no se dispararán en este
+              rango.
             </p>
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -210,11 +218,8 @@ export default function PerfilPage() {
         </button>
       </form>
 
-      {/* Sesión */}
-      <section className="mt-8">
-        <h2 className="text-sm font-semibold text-[color:var(--color-ink-soft)] mb-3">
-          Sesión
-        </h2>
+      {/* 5. Sesión — al final, sutil */}
+      <section className="mt-10 mb-2">
         <button
           type="button"
           onClick={async () => {
@@ -224,13 +229,25 @@ export default function PerfilPage() {
             qc.clear();
             router.replace("/login");
           }}
-          className="w-full py-3 rounded-xl border border-[color:var(--color-line)] text-[color:var(--color-down)] text-sm font-medium hover:bg-[color:var(--color-surface-2)] transition"
+          className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl text-sm font-medium text-[color:var(--color-ink-soft)] hover:bg-[color:var(--color-surface)] transition"
         >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            className="w-4 h-4"
+            aria-hidden
+          >
+            <path
+              d="M16 17l5-5-5-5M21 12H9M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
           Cerrar sesión
         </button>
       </section>
-
-      <CoupleSection />
     </main>
   );
 }
