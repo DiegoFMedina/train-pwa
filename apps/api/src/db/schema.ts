@@ -266,6 +266,7 @@ export const dishes = pgTable("dishes", {
   userId: uuid("user_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
+  coupleId: uuid("couple_id"),
   name: varchar("name", { length: 120 }).notNull(),
   notes: text("notes"),
   prepMinutes: integer("prep_minutes"),

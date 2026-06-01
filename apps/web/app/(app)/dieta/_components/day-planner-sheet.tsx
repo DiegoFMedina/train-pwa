@@ -4,7 +4,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import type { Dish, MealPlan, MealType } from "@mi-centro/shared";
 import { ApiError, api, type DishSuggestion } from "@/lib/api";
+import { useAuthStore } from "@/lib/auth-store";
 import { fullDateFromYmd } from "@/lib/dates";
+import { useScopeStore } from "@/lib/scope-store";
 import { MEAL_META, MEAL_ORDER } from "./meal-meta";
 
 interface Props {
@@ -16,10 +18,20 @@ interface Props {
 
 export function DayPlannerSheet({ ymd, plans, dishes, onClose }: Props) {
   const qc = useQueryClient();
+  const me = useAuthStore((s) => s.user);
+  const scope = useScopeStore((s) => s.scope);
+  const isCouple = scope === "couple";
   const [expandedMeal, setExpandedMeal] = useState<MealType | null>(null);
 
   const dishMap = new Map(dishes.map((d) => [d.id, d]));
-  const planByMeal = new Map(plans.map((p) => [p.meal_type, p]));
+
+  // Agrupar plans por meal_type → array de plans (1+ por meal_type en couple)
+  const plansByMeal = new Map<MealType, MealPlan[]>();
+  for (const p of plans) {
+    const arr = plansByMeal.get(p.meal_type) ?? [];
+    arr.push(p);
+    plansByMeal.set(p.meal_type, arr);
+  }
 
   const invalidateAll = () => {
     qc.invalidateQueries({ queryKey: ["meal-plans"] });
@@ -40,7 +52,9 @@ export function DayPlannerSheet({ ymd, plans, dishes, onClose }: Props) {
         <div className="mx-auto mb-4 h-1 w-12 rounded-full bg-[color:var(--color-line)]" />
 
         <header className="mb-5">
-          <p className="eyebrow mb-1">Planificar día</p>
+          <p className="eyebrow mb-1">
+            {isCouple ? "Planificar día · compartido" : "Planificar día"}
+          </p>
           <h2 className="title-display text-3xl capitalize">
             {fullDateFromYmd(ymd)}
           </h2>
@@ -49,8 +63,11 @@ export function DayPlannerSheet({ ymd, plans, dishes, onClose }: Props) {
         <div className="space-y-3">
           {MEAL_ORDER.map((mt) => {
             const meta = MEAL_META[mt];
-            const plan = planByMeal.get(mt);
-            const dish = plan?.dish_id ? dishMap.get(plan.dish_id) : null;
+            const slotPlans = plansByMeal.get(mt) ?? [];
+            const myPlan = slotPlans.find((p) => p.user_id === me?.id) ?? null;
+            const partnerPlans = isCouple
+              ? slotPlans.filter((p) => p.user_id !== me?.id)
+              : [];
             const expanded = expandedMeal === mt;
 
             return (
@@ -58,11 +75,13 @@ export function DayPlannerSheet({ ymd, plans, dishes, onClose }: Props) {
                 key={mt}
                 mealType={mt}
                 ymd={ymd}
-                plan={plan ?? null}
-                dish={dish ?? null}
+                myPlan={myPlan}
+                partnerPlans={partnerPlans}
+                dishMap={dishMap}
                 color={meta.color}
                 label={meta.label}
                 emoji={meta.emoji}
+                isCouple={isCouple}
                 expanded={expanded}
                 onToggle={() => setExpandedMeal(expanded ? null : mt)}
                 onChange={invalidateAll}
@@ -78,11 +97,13 @@ export function DayPlannerSheet({ ymd, plans, dishes, onClose }: Props) {
 interface MealSlotProps {
   mealType: MealType;
   ymd: string;
-  plan: MealPlan | null;
-  dish: Dish | null;
+  myPlan: MealPlan | null;
+  partnerPlans: MealPlan[];
+  dishMap: Map<string, Dish>;
   color: string;
   label: string;
   emoji: string;
+  isCouple: boolean;
   expanded: boolean;
   onToggle: () => void;
   onChange: () => void;
@@ -91,11 +112,13 @@ interface MealSlotProps {
 function MealSlot({
   mealType,
   ymd,
-  plan,
-  dish,
+  myPlan,
+  partnerPlans,
+  dishMap,
   color,
   label,
   emoji,
+  isCouple,
   expanded,
   onToggle,
   onChange,
@@ -106,13 +129,13 @@ function MealSlot({
   const suggestions = useQuery({
     queryKey: ["dish-suggestions", mealType, ymd],
     queryFn: () => api.dishes.suggestions(mealType, ymd),
-    enabled: expanded && !plan,
+    enabled: expanded && !myPlan,
   });
 
   const assignMut = useMutation({
     mutationFn: (dishId: string) =>
-      plan
-        ? api.mealPlans.update(plan.id, { dish_id: dishId })
+      myPlan
+        ? api.mealPlans.update(myPlan.id, { dish_id: dishId })
         : api.mealPlans.create({
             dish_id: dishId,
             plan_date: ymd,
@@ -129,9 +152,9 @@ function MealSlot({
 
   const toggleEatenMut = useMutation({
     mutationFn: () => {
-      if (!plan) throw new Error("Sin plan");
-      return api.mealPlans.update(plan.id, {
-        status: plan.status === "eaten" ? "planned" : "eaten",
+      if (!myPlan) throw new Error("Sin plan");
+      return api.mealPlans.update(myPlan.id, {
+        status: myPlan.status === "eaten" ? "planned" : "eaten",
       });
     },
     onSuccess: onChange,
@@ -139,8 +162,8 @@ function MealSlot({
 
   const deleteMut = useMutation({
     mutationFn: () => {
-      if (!plan) throw new Error("Sin plan");
-      return api.mealPlans.remove(plan.id);
+      if (!myPlan) throw new Error("Sin plan");
+      return api.mealPlans.remove(myPlan.id);
     },
     onSuccess: () => {
       onChange();
@@ -148,7 +171,8 @@ function MealSlot({
     },
   });
 
-  const eaten = plan?.status === "eaten";
+  const myDish = myPlan?.dish_id ? dishMap.get(myPlan.dish_id) : null;
+  const eaten = myPlan?.status === "eaten";
 
   return (
     <div className="card !p-0 overflow-hidden">
@@ -170,9 +194,40 @@ function MealSlot({
           <p className="text-[10px] uppercase tracking-wider text-[color:var(--color-ink-faint)]">
             {label}
           </p>
-          <p className={`font-medium truncate ${eaten ? "line-through opacity-60" : ""}`}>
-            {dish?.name ?? <span className="text-[color:var(--color-ink-faint)] italic">Sin plato</span>}
+          {/* Mi plan (línea principal) */}
+          <p
+            className={`font-medium truncate ${
+              eaten ? "line-through opacity-60" : ""
+            }`}
+          >
+            {myDish?.name ?? (
+              <span className="text-[color:var(--color-ink-faint)] italic">
+                {isCouple && partnerPlans.length > 0
+                  ? "Sin asignar (tú)"
+                  : "Sin plato"}
+              </span>
+            )}
           </p>
+          {/* Plans del partner (en couple) */}
+          {isCouple &&
+            partnerPlans.map((pp) => {
+              const ppDish = pp.dish_id ? dishMap.get(pp.dish_id) : null;
+              const ppEaten = pp.status === "eaten";
+              return (
+                <p
+                  key={pp.id}
+                  className={`text-xs mt-0.5 truncate ${
+                    ppEaten ? "line-through opacity-50" : ""
+                  }`}
+                  style={{ color: "var(--color-jade)" }}
+                >
+                  <span className="opacity-70">
+                    {pp.user_name?.split(" ")[0] ?? "Pareja"}:
+                  </span>{" "}
+                  {ppDish?.name ?? "sin plato"}
+                </p>
+              );
+            })}
         </div>
         <span
           className="text-[color:var(--color-ink-faint)] text-xs transition-transform"
@@ -185,7 +240,7 @@ function MealSlot({
 
       {expanded && (
         <div className="px-4 pb-4 border-t border-[color:var(--color-line)] pt-3 space-y-3">
-          {plan && (
+          {myPlan && (
             <div className="flex gap-2">
               <button
                 onClick={() => toggleEatenMut.mutate()}
@@ -208,16 +263,16 @@ function MealSlot({
             </div>
           )}
 
-          {!plan && (
+          {!myPlan && (
             <>
               <p className="text-[10px] text-[color:var(--color-ink-faint)] uppercase tracking-wider">
-                Elegir plato
+                Elegir plato {isCouple && "(para ti)"}
               </p>
               {suggestions.isLoading ? (
                 <div className="h-20 animate-pulse rounded-xl bg-[color:var(--color-surface-2)]" />
               ) : (suggestions.data ?? []).length === 0 ? (
                 <p className="text-xs text-[color:var(--color-ink-faint)]">
-                  No tienes platos todavía. Agrégalos desde "Mi catálogo".
+                  No tienes platos en este modo. Crea uno desde "Mi catálogo".
                 </p>
               ) : (
                 <SuggestionsList

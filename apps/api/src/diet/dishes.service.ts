@@ -1,5 +1,5 @@
 import { Inject, Injectable, NotFoundException } from "@nestjs/common";
-import { and, asc, desc, eq, gte, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, sql, type SQL } from "drizzle-orm";
 import type {
   CreateDish,
   CreateDishIngredient,
@@ -8,8 +8,9 @@ import type {
   MealType,
   UpdateDish,
 } from "@mi-centro/shared";
+import type { RequestScope } from "../common/scope";
 import { DB, type Db } from "../db/db.module";
-import { dishes, dishIngredients, mealPlans } from "../db/schema";
+import { coupleMembers, dishes, dishIngredients, mealPlans } from "../db/schema";
 import { toDish, toIngredient } from "./mappers";
 
 export interface DishSuggestion {
@@ -20,25 +21,37 @@ export interface DishSuggestion {
   uses_total: number;
 }
 
+function scopeCondition(userId: string, scope: RequestScope): SQL | undefined {
+  if (scope.kind === "personal") {
+    return and(eq(dishes.userId, userId), isNull(dishes.coupleId));
+  }
+  return eq(dishes.coupleId, scope.coupleId!);
+}
+
 @Injectable()
 export class DishesService {
   constructor(@Inject(DB) private readonly db: Db) {}
 
-  async list(userId: string): Promise<Dish[]> {
+  async list(userId: string, scope: RequestScope): Promise<Dish[]> {
     const rows = await this.db
       .select()
       .from(dishes)
-      .where(and(eq(dishes.userId, userId), isNull(dishes.deletedAt)))
+      .where(and(scopeCondition(userId, scope), isNull(dishes.deletedAt)))
       .orderBy(asc(dishes.name));
-    return rows.map(toDish);
+    return rows.map((r) => toDish(r));
   }
 
-  async create(userId: string, input: CreateDish): Promise<Dish> {
+  async create(
+    userId: string,
+    scope: RequestScope,
+    input: CreateDish,
+  ): Promise<Dish> {
     const [row] = await this.db
       .insert(dishes)
       .values({
         ...(input.id ? { id: input.id } : {}),
         userId,
+        coupleId: scope.coupleId,
         name: input.name,
         notes: input.notes ?? null,
         prepMinutes: input.prep_minutes ?? null,
@@ -48,13 +61,19 @@ export class DishesService {
     return toDish(row);
   }
 
-  async update(userId: string, id: string, patch: UpdateDish): Promise<Dish> {
+  async update(
+    userId: string,
+    scope: RequestScope,
+    id: string,
+    patch: UpdateDish,
+  ): Promise<Dish> {
     const updates: Partial<typeof dishes.$inferInsert> = {};
     if (patch.name !== undefined) updates.name = patch.name;
     if (patch.notes !== undefined) updates.notes = patch.notes;
-    if (patch.prep_minutes !== undefined) updates.prepMinutes = patch.prep_minutes;
+    if (patch.prep_minutes !== undefined)
+      updates.prepMinutes = patch.prep_minutes;
 
-    if (Object.keys(updates).length === 0) return this.findById(userId, id);
+    if (Object.keys(updates).length === 0) return this.findById(userId, scope, id);
     updates.updatedAt = new Date();
 
     const [row] = await this.db
@@ -63,7 +82,7 @@ export class DishesService {
       .where(
         and(
           eq(dishes.id, id),
-          eq(dishes.userId, userId),
+          scopeCondition(userId, scope),
           isNull(dishes.deletedAt),
         ),
       )
@@ -72,14 +91,18 @@ export class DishesService {
     return toDish(row);
   }
 
-  async softDelete(userId: string, id: string): Promise<void> {
+  async softDelete(
+    userId: string,
+    scope: RequestScope,
+    id: string,
+  ): Promise<void> {
     const [row] = await this.db
       .update(dishes)
       .set({ deletedAt: new Date(), updatedAt: new Date() })
       .where(
         and(
           eq(dishes.id, id),
-          eq(dishes.userId, userId),
+          scopeCondition(userId, scope),
           isNull(dishes.deletedAt),
         ),
       )
@@ -87,14 +110,17 @@ export class DishesService {
     if (!row) throw new NotFoundException("Plato no encontrado");
   }
 
-  async listIngredients(userId: string, dishId: string): Promise<DishIngredient[]> {
-    await this.findById(userId, dishId);
+  async listIngredients(
+    userId: string,
+    scope: RequestScope,
+    dishId: string,
+  ): Promise<DishIngredient[]> {
+    await this.findById(userId, scope, dishId);
     const rows = await this.db
       .select()
       .from(dishIngredients)
       .where(
         and(
-          eq(dishIngredients.userId, userId),
           eq(dishIngredients.dishId, dishId),
           isNull(dishIngredients.deletedAt),
         ),
@@ -105,10 +131,13 @@ export class DishesService {
 
   async addIngredient(
     userId: string,
+    scope: RequestScope,
     dishId: string,
     input: Omit<CreateDishIngredient, "dish_id">,
   ): Promise<DishIngredient> {
-    await this.findById(userId, dishId);
+    await this.findById(userId, scope, dishId);
+    // El ingrediente toma el user_id del actor (audit), pero el control
+    // de acceso lo hace via el dish padre (que ya validamos).
     const [row] = await this.db
       .insert(dishIngredients)
       .values({
@@ -116,9 +145,10 @@ export class DishesService {
         userId,
         dishId,
         name: input.name,
-        amount: input.amount !== undefined && input.amount !== null
-          ? input.amount.toFixed(3)
-          : null,
+        amount:
+          input.amount !== undefined && input.amount !== null
+            ? input.amount.toFixed(3)
+            : null,
         unit: input.unit ?? null,
         quantity: input.quantity ?? null,
       })
@@ -127,7 +157,13 @@ export class DishesService {
     return toIngredient(row);
   }
 
-  async removeIngredient(userId: string, dishId: string, ingredientId: string): Promise<void> {
+  async removeIngredient(
+    userId: string,
+    scope: RequestScope,
+    dishId: string,
+    ingredientId: string,
+  ): Promise<void> {
+    await this.findById(userId, scope, dishId);
     const [row] = await this.db
       .update(dishIngredients)
       .set({ deletedAt: new Date(), updatedAt: new Date() })
@@ -135,7 +171,6 @@ export class DishesService {
         and(
           eq(dishIngredients.id, ingredientId),
           eq(dishIngredients.dishId, dishId),
-          eq(dishIngredients.userId, userId),
           isNull(dishIngredients.deletedAt),
         ),
       )
@@ -144,16 +179,13 @@ export class DishesService {
   }
 
   /**
-   * Sugerencias de plato para asignar a un día. Estrategia:
-   *   - "stale"    → plato que no se usa hace 14+ días (prioridad: variar)
-   *   - "favorite" → ≥3 usos en últimos 30 días (rotación natural)
-   *   - "recent"   → usado en últimos 7 días (repetir si gustó)
-   *   - "never"    → plato sin meal_plan jamás
-   * Ordena: stale > never > favorite > recent. Dentro de cada bucket,
-   * ordena por uses_total desc (los más establecidos primero).
+   * Sugerencias para asignar a un día. Para el scope=couple usa las stats
+   * agregadas de los meal_plans de TODOS los miembros (lo planeado por cada
+   * uno cuenta como "uso" del plato compartido).
    */
   async suggestions(
     userId: string,
+    scope: RequestScope,
     mealType?: MealType,
     excludeDate?: string,
   ): Promise<DishSuggestion[]> {
@@ -167,15 +199,15 @@ export class DishesService {
     ago14.setUTCDate(ago14.getUTCDate() - 14);
     const ago14Str = ago14.toISOString().slice(0, 10);
 
-    // Una sola query con CTEs sería ideal, pero mantengo dos lecturas para legibilidad:
-    // 1) Todos los platos del usuario
-    // 2) Stats de uso (last_used_on + uses_30d + uses_total) por plato
+    // Platos del scope activo
     const allDishes = await this.db
       .select()
       .from(dishes)
-      .where(and(eq(dishes.userId, userId), isNull(dishes.deletedAt)));
-
+      .where(and(scopeCondition(userId, scope), isNull(dishes.deletedAt)));
     if (allDishes.length === 0) return [];
+
+    // Users cuyos meal_plans cuentan para las stats
+    const statsUserIds = await this.resolveMembers(userId, scope);
 
     const stats = await this.db
       .select({
@@ -187,7 +219,7 @@ export class DishesService {
       .from(mealPlans)
       .where(
         and(
-          eq(mealPlans.userId, userId),
+          inArray(mealPlans.userId, statsUserIds),
           isNull(mealPlans.deletedAt),
           mealType ? eq(mealPlans.mealType, mealType) : undefined,
         ),
@@ -224,15 +256,14 @@ export class DishesService {
 
     const order = { stale: 0, never: 1, favorite: 2, recent: 3 };
     result.sort((a, b) => {
-      if (order[a.bucket] !== order[b.bucket]) return order[a.bucket] - order[b.bucket];
+      if (order[a.bucket] !== order[b.bucket])
+        return order[a.bucket] - order[b.bucket];
       return b.uses_total - a.uses_total;
     });
 
-    // Excluir solo los platos ya planeados en la fecha+meal_type que el
-    // usuario está armando ahora (si pasó excludeDate). Antes filtrábamos
-    // por "today" globalmente, lo que ocultaba un plato cocinado hoy de
-    // las sugerencias para CUALQUIER otra fecha — un bug.
     if (excludeDate) {
+      // Excluir platos ya planeados por el ACTOR en esa fecha+meal_type
+      // (no excluimos los del partner — uno puede comer lo mismo que el otro)
       const alreadyPlanned = await this.db
         .select({ dishId: mealPlans.dishId })
         .from(mealPlans)
@@ -252,19 +283,37 @@ export class DishesService {
     return result;
   }
 
-  private async findById(userId: string, id: string): Promise<Dish> {
+  // ─── Internals ─────────────────────────────────────────────
+
+  private async findById(
+    userId: string,
+    scope: RequestScope,
+    id: string,
+  ): Promise<Dish> {
     const [row] = await this.db
       .select()
       .from(dishes)
       .where(
         and(
           eq(dishes.id, id),
-          eq(dishes.userId, userId),
+          scopeCondition(userId, scope),
           isNull(dishes.deletedAt),
         ),
       )
       .limit(1);
     if (!row) throw new NotFoundException("Plato no encontrado");
     return toDish(row);
+  }
+
+  private async resolveMembers(
+    userId: string,
+    scope: RequestScope,
+  ): Promise<string[]> {
+    if (scope.kind === "personal") return [userId];
+    const members = await this.db
+      .select({ userId: coupleMembers.userId })
+      .from(coupleMembers)
+      .where(eq(coupleMembers.coupleId, scope.coupleId!));
+    return members.map((m) => m.userId);
   }
 }

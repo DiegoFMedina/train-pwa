@@ -52,11 +52,17 @@ export function ScopeSwitcher() {
   const select = (next: "personal" | "couple") => {
     if (next !== scope) {
       setScope(next);
+      // Cualquier dato con scope-awareness debe refetch
       qc.invalidateQueries({ queryKey: ["categories"] });
       qc.invalidateQueries({ queryKey: ["transactions"] });
       qc.invalidateQueries({ queryKey: ["recurring"] });
       qc.invalidateQueries({ queryKey: ["goals"] });
       qc.invalidateQueries({ queryKey: ["summary"] });
+      qc.invalidateQueries({ queryKey: ["routines"] });
+      qc.invalidateQueries({ queryKey: ["dishes"] });
+      qc.invalidateQueries({ queryKey: ["meal-plans"] });
+      qc.invalidateQueries({ queryKey: ["shopping-list"] });
+      qc.invalidateQueries({ queryKey: ["dish-suggestions"] });
     }
     setOpen(false);
   };

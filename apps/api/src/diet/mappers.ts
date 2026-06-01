@@ -15,6 +15,7 @@ export function toDish(r: typeof dishes.$inferSelect): SharedDish {
   return {
     id: r.id,
     user_id: r.userId,
+    couple_id: r.coupleId ?? null,
     name: r.name,
     notes: r.notes,
     prep_minutes: r.prepMinutes,
@@ -43,7 +44,10 @@ export function toIngredient(
   };
 }
 
-export function toMealPlan(r: typeof mealPlans.$inferSelect): SharedMealPlan {
+export function toMealPlan(
+  r: typeof mealPlans.$inferSelect,
+  userName?: string,
+): SharedMealPlan {
   return {
     id: r.id,
     user_id: r.userId,
@@ -58,5 +62,6 @@ export function toMealPlan(r: typeof mealPlans.$inferSelect): SharedMealPlan {
     updated_at: iso(r.updatedAt),
     deleted_at: isoOrNull(r.deletedAt),
     version: r.version,
+    ...(userName !== undefined ? { user_name: userName } : {}),
   };
 }

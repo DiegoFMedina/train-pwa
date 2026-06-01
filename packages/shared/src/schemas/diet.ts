@@ -17,6 +17,7 @@ export const DishBaseSchema = z.object({
 
 export const DishSchema = DishBaseSchema.merge(SyncFieldsSchema).extend({
   user_id: UuidSchema,
+  couple_id: UuidSchema.nullable(),
 });
 export type Dish = z.infer<typeof DishSchema>;
 
@@ -70,7 +71,11 @@ export const MealPlanBaseSchema = z.object({
 
 export const MealPlanSchema = MealPlanBaseSchema
   .merge(SyncFieldsSchema)
-  .extend({ user_id: UuidSchema });
+  .extend({
+    user_id: UuidSchema,
+    // Denormalizado para vista compartida (solo viene poblado en scope=couple).
+    user_name: z.string().optional(),
+  });
 export type MealPlan = z.infer<typeof MealPlanSchema>;
 
 export const CreateMealPlanSchema = MealPlanBaseSchema.extend({

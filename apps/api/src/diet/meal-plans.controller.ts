@@ -19,6 +19,7 @@ import {
   type UpdateMealPlan,
 } from "@mi-centro/shared";
 import { CurrentUser, type AuthUser } from "../auth/auth.decorators";
+import { ScopeHeader, ScopeResolver } from "../common/scope";
 import { ZodValidationPipe } from "../common/zod.pipe";
 import { MealPlansService } from "./meal-plans.service";
 
@@ -26,66 +27,71 @@ const YMD_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 @Controller("meal-plans")
 export class MealPlansController {
-  constructor(private readonly svc: MealPlansService) {}
+  constructor(
+    private readonly svc: MealPlansService,
+    private readonly scopeResolver: ScopeResolver,
+  ) {}
 
-  /**
-   * Comidas en rango. Modos:
-   *   - ?date=YYYY-MM-DD  → solo ese día (compat con UI anterior)
-   *   - ?from&to          → rango inclusivo (para vista calendario)
-   *   - sin params        → hoy
-   */
   @Get()
-  list(
+  async list(
     @CurrentUser() user: AuthUser,
+    @ScopeHeader() hdr: string,
     @Query("date") date?: string,
     @Query("from") from?: string,
     @Query("to") to?: string,
   ) {
+    const scope = await this.scopeResolver.resolve(user.id, hdr);
     if (from || to) {
       const f = from ?? new Date().toISOString().slice(0, 10);
       const t = to ?? f;
       if (!YMD_RE.test(f) || !YMD_RE.test(t)) {
         throw new BadRequestException("from/to en formato YYYY-MM-DD");
       }
-      return this.svc.listInRange(user.id, f, t);
+      return this.svc.listInRange(user.id, scope, f, t);
     }
     const d = date ?? new Date().toISOString().slice(0, 10);
     if (!YMD_RE.test(d)) {
       throw new BadRequestException(`date inválido: ${d} (esperado YYYY-MM-DD)`);
     }
-    return this.svc.listForDay(user.id, d);
+    return this.svc.listForDay(user.id, scope, d);
   }
 
   @Post()
-  create(
+  async create(
     @CurrentUser() user: AuthUser,
+    @ScopeHeader() hdr: string,
     @Body(new ZodValidationPipe(CreateMealPlanSchema)) body: CreateMealPlan,
   ) {
-    return this.svc.create(user.id, body);
+    const scope = await this.scopeResolver.resolve(user.id, hdr);
+    return this.svc.create(user.id, scope, body);
   }
 
   @Patch(":id")
-  update(
+  async update(
     @CurrentUser() user: AuthUser,
+    @ScopeHeader() hdr: string,
     @Param("id", ParseUUIDPipe) id: string,
     @Body(new ZodValidationPipe(UpdateMealPlanSchema)) body: UpdateMealPlan,
   ) {
-    return this.svc.update(user.id, id, body);
+    const scope = await this.scopeResolver.resolve(user.id, hdr);
+    return this.svc.update(user.id, scope, id, body);
   }
 
   @Delete(":id")
   @HttpCode(HttpStatus.NO_CONTENT)
   async remove(
     @CurrentUser() user: AuthUser,
+    @ScopeHeader() hdr: string,
     @Param("id", ParseUUIDPipe) id: string,
   ) {
-    await this.svc.softDelete(user.id, id);
+    const scope = await this.scopeResolver.resolve(user.id, hdr);
+    await this.svc.softDelete(user.id, scope, id);
   }
 
-  /** Lista de compras agregada para un rango. */
   @Get("shopping-list")
-  shoppingList(
+  async shoppingList(
     @CurrentUser() user: AuthUser,
+    @ScopeHeader() hdr: string,
     @Query("from") from?: string,
     @Query("to") to?: string,
   ) {
@@ -97,6 +103,7 @@ export class MealPlansController {
     if (!YMD_RE.test(f) || !YMD_RE.test(t)) {
       throw new BadRequestException("from/to en formato YYYY-MM-DD");
     }
-    return this.svc.shoppingList(user.id, f, t);
+    const scope = await this.scopeResolver.resolve(user.id, hdr);
+    return this.svc.shoppingList(user.id, scope, f, t);
   }
 }

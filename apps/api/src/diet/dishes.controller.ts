@@ -23,6 +23,7 @@ import {
   type UpdateDish,
 } from "@mi-centro/shared";
 import { CurrentUser, type AuthUser } from "../auth/auth.decorators";
+import { ScopeHeader, ScopeResolver } from "../common/scope";
 import { ZodValidationPipe } from "../common/zod.pipe";
 import { DishesService } from "./dishes.service";
 
@@ -33,22 +34,21 @@ type CreateIngredientBody = z.infer<typeof CreateIngredientBodySchema>;
 
 @Controller("dishes")
 export class DishesController {
-  constructor(private readonly svc: DishesService) {}
+  constructor(
+    private readonly svc: DishesService,
+    private readonly scopeResolver: ScopeResolver,
+  ) {}
 
   @Get()
-  list(@CurrentUser() user: AuthUser) {
-    return this.svc.list(user.id);
+  async list(@CurrentUser() user: AuthUser, @ScopeHeader() hdr: string) {
+    const scope = await this.scopeResolver.resolve(user.id, hdr);
+    return this.svc.list(user.id, scope);
   }
 
-  /**
-   * Sugerencias para planificar: prioriza platos no usados hace tiempo.
-   * Opcional ?meal_type para sesgar por tipo de comida.
-   * Opcional ?date=YYYY-MM-DD para excluir platos ya planeados en esa
-   * fecha+meal_type (evita sugerir lo mismo dos veces al mismo slot).
-   */
   @Get("suggestions")
-  suggestions(
+  async suggestions(
     @CurrentUser() user: AuthUser,
+    @ScopeHeader() hdr: string,
     @Query("meal_type") mealType?: string,
     @Query("date") date?: string,
   ) {
@@ -63,62 +63,75 @@ export class DishesController {
     if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
       throw new BadRequestException(`date inválido: ${date}`);
     }
-    return this.svc.suggestions(user.id, mt, date);
+    const scope = await this.scopeResolver.resolve(user.id, hdr);
+    return this.svc.suggestions(user.id, scope, mt, date);
   }
 
   @Post()
-  create(
+  async create(
     @CurrentUser() user: AuthUser,
+    @ScopeHeader() hdr: string,
     @Body(new ZodValidationPipe(CreateDishSchema)) body: CreateDish,
   ) {
-    return this.svc.create(user.id, body);
+    const scope = await this.scopeResolver.resolve(user.id, hdr);
+    return this.svc.create(user.id, scope, body);
   }
 
   @Patch(":id")
-  update(
+  async update(
     @CurrentUser() user: AuthUser,
+    @ScopeHeader() hdr: string,
     @Param("id", ParseUUIDPipe) id: string,
     @Body(new ZodValidationPipe(UpdateDishSchema)) body: UpdateDish,
   ) {
-    return this.svc.update(user.id, id, body);
+    const scope = await this.scopeResolver.resolve(user.id, hdr);
+    return this.svc.update(user.id, scope, id, body);
   }
 
   @Delete(":id")
   @HttpCode(HttpStatus.NO_CONTENT)
   async remove(
     @CurrentUser() user: AuthUser,
+    @ScopeHeader() hdr: string,
     @Param("id", ParseUUIDPipe) id: string,
   ) {
-    await this.svc.softDelete(user.id, id);
+    const scope = await this.scopeResolver.resolve(user.id, hdr);
+    await this.svc.softDelete(user.id, scope, id);
   }
 
-  // ─── ingredientes ──────────────────────────────────────────
+  // ─── Ingredientes ──────────────────────────────────────────
 
   @Get(":id/ingredients")
-  listIngredients(
+  async listIngredients(
     @CurrentUser() user: AuthUser,
+    @ScopeHeader() hdr: string,
     @Param("id", ParseUUIDPipe) dishId: string,
   ) {
-    return this.svc.listIngredients(user.id, dishId);
+    const scope = await this.scopeResolver.resolve(user.id, hdr);
+    return this.svc.listIngredients(user.id, scope, dishId);
   }
 
   @Post(":id/ingredients")
-  addIngredient(
+  async addIngredient(
     @CurrentUser() user: AuthUser,
+    @ScopeHeader() hdr: string,
     @Param("id", ParseUUIDPipe) dishId: string,
     @Body(new ZodValidationPipe(CreateIngredientBodySchema))
     body: CreateIngredientBody,
   ) {
-    return this.svc.addIngredient(user.id, dishId, body);
+    const scope = await this.scopeResolver.resolve(user.id, hdr);
+    return this.svc.addIngredient(user.id, scope, dishId, body);
   }
 
   @Delete(":id/ingredients/:ingredientId")
   @HttpCode(HttpStatus.NO_CONTENT)
   async removeIngredient(
     @CurrentUser() user: AuthUser,
+    @ScopeHeader() hdr: string,
     @Param("id", ParseUUIDPipe) dishId: string,
     @Param("ingredientId", ParseUUIDPipe) ingredientId: string,
   ) {
-    await this.svc.removeIngredient(user.id, dishId, ingredientId);
+    const scope = await this.scopeResolver.resolve(user.id, hdr);
+    await this.svc.removeIngredient(user.id, scope, dishId, ingredientId);
   }
 }

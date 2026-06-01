@@ -13,6 +13,7 @@ import {
   weekRangeContaining,
 } from "@/lib/dates";
 import { formatQuantityWithUnit } from "@/lib/quantity";
+import { useScopeStore } from "@/lib/scope-store";
 import { DayPlannerSheet } from "./_components/day-planner-sheet";
 import { MonthCalendar } from "./_components/month-calendar";
 import { DishesSheet } from "./dishes-sheet";
@@ -20,6 +21,8 @@ import { DishesSheet } from "./dishes-sheet";
 type ShoppingTab = "week" | "month";
 
 export default function DietaPage() {
+  const scope = useScopeStore((s) => s.scope);
+  const isCouple = scope === "couple";
   const today = todayYmd();
   const todayDate = parseYmd(today);
   const [year, setYear] = useState(todayDate.getUTCFullYear());
@@ -31,12 +34,12 @@ export default function DietaPage() {
   const range = useMemo(() => monthRange(year, month0), [year, month0]);
 
   const plansQ = useQuery({
-    queryKey: ["meal-plans", "range", range.from, range.to],
+    queryKey: ["meal-plans", "range", range.from, range.to, scope],
     queryFn: () => api.mealPlans.listInRange(range.from, range.to),
   });
 
   const dishesQ = useQuery({
-    queryKey: ["dishes"],
+    queryKey: ["dishes", scope],
     queryFn: () => api.dishes.list(),
   });
 
@@ -46,7 +49,7 @@ export default function DietaPage() {
   }, [shoppingTab, today, range]);
 
   const shoppingQ = useQuery({
-    queryKey: ["shopping-list", shoppingRange.from, shoppingRange.to],
+    queryKey: ["shopping-list", shoppingRange.from, shoppingRange.to, scope],
     queryFn: () => api.mealPlans.shoppingList(shoppingRange.from, shoppingRange.to),
   });
 
