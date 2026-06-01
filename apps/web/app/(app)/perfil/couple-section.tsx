@@ -43,10 +43,11 @@ function EmptyCoupleCard() {
   const [joining, setJoining] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState("Nuestra cuenta");
+  const [mode, setMode] = useState<"separate" | "unified">("separate");
   const [code, setCode] = useState("");
 
   const createMut = useMutation({
-    mutationFn: () => api.couples.create(name.trim() || "Nuestra cuenta"),
+    mutationFn: () => api.couples.create(name.trim() || "Nuestra cuenta", mode),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["couples"] });
       setCreating(false);
@@ -67,7 +68,7 @@ function EmptyCoupleCard() {
 
   if (creating) {
     return (
-      <div className="card space-y-3">
+      <div className="card space-y-4">
         <p className="eyebrow">Nueva pareja</p>
         <input
           className="input"
@@ -77,6 +78,27 @@ function EmptyCoupleCard() {
           maxLength={80}
           autoFocus
         />
+
+        <div className="space-y-2">
+          <p className="eyebrow">Cómo manejan las finanzas</p>
+          <ModeCard
+            active={mode === "separate"}
+            onClick={() => setMode("separate")}
+            title="Personal + compartido"
+            subtitle="Cada uno mantiene sus finanzas privadas. Lo del hogar va a un pool aparte que ambos ven."
+            recommended
+          />
+          <ModeCard
+            active={mode === "unified"}
+            onClick={() => setMode("unified")}
+            title="Todo compartido"
+            subtitle="Sin secretos. Ambos ven todos los ingresos y gastos. No hay zona personal."
+          />
+          <p className="text-[10px] text-[color:var(--color-ink-faint)] px-1">
+            Podrás cambiarlo después sin perder datos.
+          </p>
+        </div>
+
         {error && <p className="text-sm text-[color:var(--color-down)]">{error}</p>}
         <div className="flex gap-2">
           <button
@@ -198,6 +220,23 @@ function ActiveCoupleCard({ couple }: { couple: CoupleWithMembers }) {
   const revokeMut = useMutation({
     mutationFn: (invitationId: string) => api.couples.revokeInvitation(invitationId),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["couples", couple.id, "invitations"] }),
+  });
+
+  const updateModeMut = useMutation({
+    mutationFn: (mode: "separate" | "unified") =>
+      api.couples.update(couple.id, { mode }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["couples"] });
+      // Forzar refetch de TODA la data scope-dependent porque el modo cambió
+      qc.invalidateQueries({ queryKey: ["categories"] });
+      qc.invalidateQueries({ queryKey: ["transactions"] });
+      qc.invalidateQueries({ queryKey: ["recurring"] });
+      qc.invalidateQueries({ queryKey: ["goals"] });
+      qc.invalidateQueries({ queryKey: ["summary"] });
+      qc.invalidateQueries({ queryKey: ["routines"] });
+      qc.invalidateQueries({ queryKey: ["dishes"] });
+      qc.invalidateQueries({ queryKey: ["meal-plans"] });
+    },
   });
 
   const kickMut = useMutation({
@@ -359,6 +398,50 @@ function ActiveCoupleCard({ couple }: { couple: CoupleWithMembers }) {
         </div>
       )}
 
+      {/* Modo financiero (solo el owner puede cambiar) */}
+      {isOwner && (
+        <div className="card space-y-3">
+          <div>
+            <p className="text-sm font-medium">Modo financiero</p>
+            <p className="text-[10px] text-[color:var(--color-ink-faint)]">
+              Cambiar no destruye datos. Solo afecta qué se ve en la app.
+            </p>
+          </div>
+          <ModeCard
+            active={couple.mode === "separate"}
+            onClick={() => {
+              if (couple.mode !== "separate") {
+                if (
+                  confirm(
+                    "Cambiar a modo Personal + Compartido. Ambos volverán a tener su zona personal privada.",
+                  )
+                ) {
+                  updateModeMut.mutate("separate");
+                }
+              }
+            }}
+            title="Personal + compartido"
+            subtitle="Cada uno con sus finanzas privadas. Lo común va al pool del hogar."
+          />
+          <ModeCard
+            active={couple.mode === "unified"}
+            onClick={() => {
+              if (couple.mode !== "unified") {
+                if (
+                  confirm(
+                    "Cambiar a modo Todo compartido. La zona personal se ocultará — sus datos siguen guardados pero no se ven hasta volver al modo anterior.",
+                  )
+                ) {
+                  updateModeMut.mutate("unified");
+                }
+              }
+            }}
+            title="Todo compartido"
+            subtitle="Sin secretos. Ambos ven todos los ingresos y gastos."
+          />
+        </div>
+      )}
+
       {/* Acciones de salida */}
       <div className="flex gap-2">
         {!isOwner && (
@@ -392,6 +475,63 @@ function ActiveCoupleCard({ couple }: { couple: CoupleWithMembers }) {
         )}
       </div>
     </div>
+  );
+}
+
+function ModeCard({
+  active,
+  onClick,
+  title,
+  subtitle,
+  recommended,
+}: {
+  active: boolean;
+  onClick: () => void;
+  title: string;
+  subtitle: string;
+  recommended?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={`w-full text-left p-3 rounded-2xl border transition ${
+        active
+          ? "border-[color:var(--color-accent)] bg-[color:var(--color-surface-2)]"
+          : "border-[color:var(--color-line)] hover:bg-[color:var(--color-surface)]"
+      }`}
+    >
+      <div className="flex items-start gap-3">
+        <span
+          className={`w-4 h-4 rounded-full border-2 grid place-items-center flex-shrink-0 mt-0.5 ${
+            active
+              ? "border-[color:var(--color-accent)]"
+              : "border-[color:var(--color-line-strong)]"
+          }`}
+        >
+          {active && (
+            <span
+              className="w-2 h-2 rounded-full"
+              style={{ background: "var(--color-accent)" }}
+            />
+          )}
+        </span>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-baseline gap-2">
+            <p className="font-semibold text-sm">{title}</p>
+            {recommended && (
+              <span className="text-[9px] uppercase tracking-wider font-bold text-[color:var(--color-accent)]">
+                Recomendado
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-[color:var(--color-ink-soft)] mt-0.5 leading-relaxed">
+            {subtitle}
+          </p>
+        </div>
+      </div>
+    </button>
   );
 }
 

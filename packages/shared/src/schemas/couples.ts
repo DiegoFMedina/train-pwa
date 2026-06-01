@@ -4,10 +4,19 @@ import { IsoDateTimeSchema, UuidSchema } from "./common.js";
 export const CoupleRoleSchema = z.enum(["owner", "member"]);
 export type CoupleRole = z.infer<typeof CoupleRoleSchema>;
 
+/**
+ * Modo financiero de la pareja:
+ *   "separate" → Personal + Compartido coexisten (modelo híbrido, default)
+ *   "unified"  → Solo Compartido (todo a la vista, sin secretos)
+ */
+export const CoupleModeSchema = z.enum(["separate", "unified"]);
+export type CoupleMode = z.infer<typeof CoupleModeSchema>;
+
 export const CoupleSchema = z.object({
   id: UuidSchema,
   name: z.string().min(1).max(80),
   owner_id: UuidSchema,
+  mode: CoupleModeSchema,
   created_at: IsoDateTimeSchema,
   updated_at: IsoDateTimeSchema,
 });
@@ -32,11 +41,13 @@ export type CoupleWithMembers = z.infer<typeof CoupleWithMembersSchema>;
 
 export const CreateCoupleSchema = z.object({
   name: z.string().min(1).max(80).default("Nuestra cuenta"),
+  mode: CoupleModeSchema.default("separate"),
 });
 export type CreateCouple = z.infer<typeof CreateCoupleSchema>;
 
 export const UpdateCoupleSchema = z.object({
-  name: z.string().min(1).max(80),
+  name: z.string().min(1).max(80).optional(),
+  mode: CoupleModeSchema.optional(),
 });
 export type UpdateCouple = z.infer<typeof UpdateCoupleSchema>;
 

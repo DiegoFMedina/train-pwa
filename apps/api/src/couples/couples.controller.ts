@@ -40,16 +40,17 @@ export class CouplesController {
     @CurrentUser() user: AuthUser,
     @Body(new ZodValidationPipe(CreateCoupleSchema)) body: CreateCouple,
   ) {
-    return this.svc.create(user.id, body.name);
+    return this.svc.create(user.id, body.name, body.mode);
   }
 
+  /** Cambiar nombre o modo (separate/unified). Solo el owner. */
   @Patch(":id")
-  rename(
+  update(
     @CurrentUser() user: AuthUser,
     @Param("id", ParseUUIDPipe) id: string,
     @Body(new ZodValidationPipe(UpdateCoupleSchema)) body: UpdateCouple,
   ) {
-    return this.svc.rename(user.id, id, body.name);
+    return this.svc.update(user.id, id, body);
   }
 
   /** Borrar la pareja (solo owner). */

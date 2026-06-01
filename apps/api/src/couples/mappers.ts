@@ -18,6 +18,7 @@ export function toCouple(r: typeof couples.$inferSelect): SharedCouple {
     id: r.id,
     name: r.name,
     owner_id: r.ownerId,
+    mode: r.mode as SharedCouple["mode"],
     created_at: iso(r.createdAt),
     updated_at: iso(r.updatedAt),
   };

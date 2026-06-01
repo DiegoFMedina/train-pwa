@@ -27,7 +27,12 @@ export function ScopeSwitcher() {
 
   useEffect(() => {
     setHasCouple(!!couple.data);
-  }, [couple.data, setHasCouple]);
+    // En modo "unified" la pareja no tiene Personal — forzar scope=couple
+    if (couple.data?.mode === "unified" && scope === "personal") {
+      setScope("couple");
+      qc.invalidateQueries();
+    }
+  }, [couple.data, scope, setHasCouple, setScope, qc]);
 
   useEffect(() => {
     if (!open) return;
@@ -66,6 +71,31 @@ export function ScopeSwitcher() {
     }
     setOpen(false);
   };
+
+  const isUnified = couple.data.mode === "unified";
+
+  // En modo unified, mostrar solo un badge informativo (sin toggle)
+  if (isUnified) {
+    return (
+      <div
+        className="flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm font-medium"
+        style={{
+          background: "color-mix(in oklab, var(--color-bg) 60%, transparent)",
+          borderColor: "color-mix(in oklab, var(--color-jade) 40%, transparent)",
+          color: "var(--color-jade)",
+        }}
+        aria-label="Pareja en modo unificado"
+      >
+        <span
+          className="w-1.5 h-1.5 rounded-full"
+          style={{ background: "var(--color-jade)" }}
+        />
+        <span className="font-semibold tracking-wide truncate max-w-[140px]">
+          {coupleLabel}
+        </span>
+      </div>
+    );
+  }
 
   return (
     <div ref={ref} className="relative">

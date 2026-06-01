@@ -11,7 +11,9 @@ import type {
   Couple,
   CoupleInvitation,
   CoupleMember,
+  CoupleMode,
   CoupleWithMembers,
+  UpdateCouple,
 } from "@mi-centro/shared";
 import { DB, type Db } from "../db/db.module";
 import { coupleInvitations, coupleMembers, couples, users } from "../db/schema";
@@ -34,7 +36,11 @@ export class CouplesService {
     return this.findByIdWithMembers(member.coupleId);
   }
 
-  async create(userId: string, name: string): Promise<CoupleWithMembers> {
+  async create(
+    userId: string,
+    name: string,
+    mode: CoupleMode = "separate",
+  ): Promise<CoupleWithMembers> {
     // Un user solo puede pertenecer a una pareja a la vez.
     const existing = await this.myCouple(userId);
     if (existing) {
@@ -44,7 +50,7 @@ export class CouplesService {
     const couple = await this.db.transaction(async (tx) => {
       const [c] = await tx
         .insert(couples)
-        .values({ name, ownerId: userId })
+        .values({ name, mode, ownerId: userId })
         .returning();
       if (!c) throw new Error("INSERT couples no devolvió fila");
 
@@ -63,11 +69,33 @@ export class CouplesService {
     return full;
   }
 
-  async rename(userId: string, coupleId: string, name: string): Promise<Couple> {
+  /**
+   * Actualiza name o mode (o ambos). Solo el owner puede cambiar.
+   * El cambio de mode NO destruye datos — solo afecta la UX cliente.
+   */
+  async update(
+    userId: string,
+    coupleId: string,
+    patch: UpdateCouple,
+  ): Promise<Couple> {
     await this.assertOwner(userId, coupleId);
+    const updates: Partial<typeof couples.$inferInsert> = {};
+    if (patch.name !== undefined) updates.name = patch.name;
+    if (patch.mode !== undefined) updates.mode = patch.mode;
+    if (Object.keys(updates).length === 0) {
+      // No hay cambios; devolver la couple tal cual
+      const [row] = await this.db
+        .select()
+        .from(couples)
+        .where(and(eq(couples.id, coupleId), isNull(couples.deletedAt)))
+        .limit(1);
+      if (!row) throw new NotFoundException("Pareja no encontrada");
+      return toCouple(row);
+    }
+    updates.updatedAt = new Date();
     const [row] = await this.db
       .update(couples)
-      .set({ name, updatedAt: new Date() })
+      .set(updates)
       .where(and(eq(couples.id, coupleId), isNull(couples.deletedAt)))
       .returning();
     if (!row) throw new NotFoundException("Pareja no encontrada");

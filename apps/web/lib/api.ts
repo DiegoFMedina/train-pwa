@@ -176,13 +176,15 @@ export const api = {
   },
   couples: {
     me: () => request<CoupleWithMembers | null>("/couples/me"),
-    create: (name: string) =>
+    create: (name: string, mode: "separate" | "unified" = "separate") =>
       request<CoupleWithMembers>("/couples", {
         method: "POST",
-        body: { name },
+        body: { name, mode },
       }),
-    rename: (id: string, name: string) =>
-      request<Couple>(`/couples/${id}`, { method: "PATCH", body: { name } }),
+    update: (
+      id: string,
+      patch: { name?: string; mode?: "separate" | "unified" },
+    ) => request<Couple>(`/couples/${id}`, { method: "PATCH", body: patch }),
     remove: (id: string) =>
       request<void>(`/couples/${id}`, { method: "DELETE" }),
     leave: (id: string) =>
