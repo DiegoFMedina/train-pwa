@@ -12,6 +12,7 @@ import {
   todayYmd,
   weekRangeContaining,
 } from "@/lib/dates";
+import { formatQuantityWithUnit } from "@/lib/quantity";
 import { DayPlannerSheet } from "./_components/day-planner-sheet";
 import { MonthCalendar } from "./_components/month-calendar";
 import { DishesSheet } from "./dishes-sheet";
@@ -170,22 +171,28 @@ export default function DietaPage() {
           </div>
         ) : (
           <div className="card space-y-2.5">
-            {shoppingQ.data!.items.map((it) => (
-              <div key={`${it.name}-${it.unit ?? ""}`} className="flex items-start gap-3">
-                <span className="w-1.5 h-1.5 rounded-full bg-[color:var(--color-accent)] flex-shrink-0 mt-2" />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-baseline justify-between gap-2">
-                    <p className="font-medium truncate">{it.name}</p>
-                    <p className="mono text-xs text-[color:var(--color-accent)] font-semibold flex-shrink-0">
-                      {it.display}
+            {shoppingQ.data!.items.map((it) => {
+              const pretty =
+                it.amount !== null
+                  ? formatQuantityWithUnit(it.amount, it.unit) || it.display
+                  : it.display;
+              return (
+                <div key={`${it.name}-${it.unit ?? ""}`} className="flex items-start gap-3">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[color:var(--color-accent)] flex-shrink-0 mt-2" />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-baseline justify-between gap-2">
+                      <p className="font-medium truncate">{it.name}</p>
+                      <p className="mono text-xs text-[color:var(--color-accent)] font-semibold flex-shrink-0 tabular-nums">
+                        {pretty}
+                      </p>
+                    </div>
+                    <p className="text-[10px] text-[color:var(--color-ink-faint)] truncate">
+                      {it.occurrences}× · {it.dishes.join(", ")}
                     </p>
                   </div>
-                  <p className="text-[10px] text-[color:var(--color-ink-faint)] truncate">
-                    {it.occurrences}× · {it.dishes.join(", ")}
-                  </p>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </section>

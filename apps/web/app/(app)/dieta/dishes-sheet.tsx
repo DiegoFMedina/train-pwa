@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import type { Dish } from "@mi-centro/shared";
 import { ApiError, api } from "@/lib/api";
+import { formatQuantityWithUnit, parseQuantity } from "@/lib/quantity";
 
 interface Props {
   open: boolean;
@@ -11,7 +12,21 @@ interface Props {
   dishes: Dish[];
 }
 
-const UNIT_SUGGESTIONS = ["g", "kg", "ml", "L", "un", "cda", "cdita", "taza", "pizca", "rebanada"];
+// Unidades comunes en cocina chilena. Mezcla peso, volumen, piezas y fracciones de cosas.
+const UNIT_SUGGESTIONS = [
+  // peso/volumen
+  "g", "kg", "ml", "L",
+  // piezas / fracciones
+  "un", "trozo", "rebanada", "gajo",
+  // partes de algo
+  "diente", "cabeza", "hoja", "rama", "manojo", "puñado",
+  // empaques
+  "paquete", "lata", "sobre", "bolsa",
+  // medidas de cocina
+  "taza", "cda", "cdita", "pizca", "chorrito",
+];
+
+const QUICK_FRACTIONS = ["½", "¼", "¾", "⅓", "⅔"];
 
 export function DishesSheet({ open, onClose, dishes }: Props) {
   const qc = useQueryClient();
@@ -170,13 +185,16 @@ function DishCard({
   });
   const [ingName, setIngName] = useState("");
   const [ingAmount, setIngAmount] = useState("");
-  const [ingUnit, setIngUnit] = useState("g");
+  const [ingUnit, setIngUnit] = useState("");
+
+  const parsedAmount = ingAmount.trim() ? parseQuantity(ingAmount) : null;
+  const amountValid = !ingAmount.trim() || parsedAmount !== null;
 
   const addMut = useMutation({
     mutationFn: () =>
       api.dishes.addIngredient(dish.id, {
         name: ingName.trim(),
-        amount: ingAmount ? Number(ingAmount) : null,
+        amount: parsedAmount,
         unit: ingUnit.trim() || null,
         quantity: null,
       }),
@@ -185,6 +203,7 @@ function DishCard({
       qc.invalidateQueries({ queryKey: ["shopping-list"] });
       setIngName("");
       setIngAmount("");
+      setIngUnit("");
     },
   });
 
@@ -195,6 +214,16 @@ function DishCard({
       qc.invalidateQueries({ queryKey: ["shopping-list"] });
     },
   });
+
+  const setFraction = (sym: string) => {
+    // Si ya hay un entero, lo dejamos como mixto. Ej: "1" + tap ½ → "1 ½"
+    const trimmed = ingAmount.trim();
+    if (trimmed && /^\d+$/.test(trimmed)) {
+      setIngAmount(`${trimmed} ${sym}`);
+    } else {
+      setIngAmount(sym);
+    }
+  };
 
   return (
     <div className="card !p-0 overflow-hidden">
@@ -242,15 +271,16 @@ function DishCard({
               ) : (
                 <div className="space-y-1.5">
                   {ingredients.data!.map((ing) => {
-                    const display = ing.amount !== null && ing.amount !== undefined
-                      ? `${formatNum(ing.amount)}${ing.unit ? " " + ing.unit : ""}`
-                      : ing.quantity ?? "al gusto";
+                    const pretty =
+                      ing.amount !== null && ing.amount !== undefined
+                        ? formatQuantityWithUnit(ing.amount, ing.unit ?? null)
+                        : (ing.quantity ?? "al gusto");
                     return (
                       <div key={ing.id} className="flex items-center gap-2 text-sm">
-                        <span className="w-1.5 h-1.5 rounded-full bg-[color:var(--color-accent)]" />
+                        <span className="w-1.5 h-1.5 rounded-full bg-[color:var(--color-accent)] flex-shrink-0" />
                         <span className="flex-1 truncate">{ing.name}</span>
-                        <span className="mono text-xs text-[color:var(--color-ink-soft)]">
-                          {display}
+                        <span className="mono text-xs text-[color:var(--color-ink-soft)] tabular-nums">
+                          {pretty}
                         </span>
                         <button
                           type="button"
@@ -269,30 +299,32 @@ function DishCard({
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
-                  if (ingName.trim()) addMut.mutate();
+                  if (ingName.trim() && amountValid) addMut.mutate();
                 }}
                 className="space-y-1.5 pt-1"
               >
                 <input
                   className="input !py-1.5 !text-xs"
-                  placeholder="Ingrediente (ej: Pollo)"
+                  placeholder="Ingrediente (ej: Pollo, Palta, Sal)"
                   value={ingName}
                   onChange={(e) => setIngName(e.target.value)}
                 />
                 <div className="grid grid-cols-[1fr_1fr_auto] gap-1.5">
                   <input
-                    className="input !py-1.5 !text-xs mono"
-                    type="number"
+                    className={`input !py-1.5 !text-xs mono ${
+                      !amountValid ? "!border-[color:var(--color-down)]" : ""
+                    }`}
+                    type="text"
                     inputMode="decimal"
-                    step="any"
-                    placeholder="Cantidad"
+                    placeholder="½ · 1/2 · 0.5"
                     value={ingAmount}
                     onChange={(e) => setIngAmount(e.target.value)}
+                    aria-invalid={!amountValid}
                   />
                   <input
                     className="input !py-1.5 !text-xs mono"
                     list="ing-units"
-                    placeholder="Unidad"
+                    placeholder="g · un · taza…"
                     value={ingUnit}
                     onChange={(e) => setIngUnit(e.target.value)}
                   />
@@ -303,12 +335,41 @@ function DishCard({
                   </datalist>
                   <button
                     type="submit"
-                    disabled={!ingName.trim() || addMut.isPending}
+                    disabled={!ingName.trim() || !amountValid || addMut.isPending}
                     className="btn-primary !w-auto !py-1.5 !px-3 text-xs"
                   >
                     +
                   </button>
                 </div>
+                {/* Atajos de fracciones */}
+                <div className="flex flex-wrap gap-1">
+                  {QUICK_FRACTIONS.map((sym) => (
+                    <button
+                      key={sym}
+                      type="button"
+                      onClick={() => setFraction(sym)}
+                      className="px-2 py-0.5 rounded-md text-xs bg-[color:var(--color-surface-2)] hover:bg-[color:var(--color-surface)] text-[color:var(--color-ink-soft)] transition"
+                      aria-label={`Fracción ${sym}`}
+                    >
+                      {sym}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIngAmount("");
+                      setIngUnit("");
+                    }}
+                    className="px-2 py-0.5 rounded-md text-xs text-[color:var(--color-ink-faint)] hover:bg-[color:var(--color-surface-2)] ml-auto transition"
+                  >
+                    al gusto
+                  </button>
+                </div>
+                {ingAmount && !amountValid && (
+                  <p className="text-[10px] text-[color:var(--color-down)]">
+                    Cantidad inválida. Usa números, fracciones (1/2) o decimales (0.5).
+                  </p>
+                )}
               </form>
             </>
           )}
@@ -316,13 +377,6 @@ function DishCard({
       )}
     </div>
   );
-}
-
-function formatNum(n: number): string {
-  if (Number.isInteger(n)) return String(n);
-  return Number(n.toFixed(3))
-    .toString()
-    .replace(/\.?0+$/, "");
 }
 
 function toMessage(e: unknown): string {
