@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ApiError, api } from "@/lib/api";
 import { useAuthStore } from "@/lib/auth-store";
+import { useOnboardingStore } from "@/lib/onboarding-store";
 
 type Mode = "login" | "register";
 
@@ -11,6 +12,8 @@ export default function LoginPage() {
   const router = useRouter();
   const setAccessToken = useAuthStore((s) => s.setAccessToken);
   const setUser = useAuthStore((s) => s.setUser);
+  const setFlag = useOnboardingStore((s) => s.setFlag);
+  const markAllComplete = useOnboardingStore((s) => s.markAllComplete);
 
   const [mode, setMode] = useState<Mode>("login");
   const [name, setName] = useState("");
@@ -30,7 +33,15 @@ export default function LoginPage() {
           : await api.auth.register({ name, email, password });
       setAccessToken(r.tokens.access_token);
       setUser(r.user);
-      router.replace("/hoy");
+      if (mode === "register") {
+        // Cuenta nueva → dispara flujo de onboarding
+        setFlag("registered", true);
+        router.replace("/onboarding/solo-o-pareja");
+      } else {
+        // Cuenta existente → asume todo el onboarding listo
+        markAllComplete();
+        router.replace("/hoy");
+      }
     } catch (e) {
       if (e instanceof ApiError) {
         const body = e.body as { message?: string; issues?: Array<{ message: string }> } | null;

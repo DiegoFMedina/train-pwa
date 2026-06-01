@@ -4,7 +4,10 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { api } from "@/lib/api";
 import { currentMonth, money } from "@/lib/format";
+import { useScopeStore } from "@/lib/scope-store";
 import { CategoriesSheet } from "./categories-sheet";
+import { CategoriesStarter } from "./_components/categories-starter";
+import { CouplePromoBanner } from "./_components/couple-promo-banner";
 import { GoalsSection } from "./goals-section";
 import { NewTransactionForm } from "./new-transaction";
 import { TransactionItem } from "./transaction-item";
@@ -12,6 +15,8 @@ import { TransactionItem } from "./transaction-item";
 export default function FinanzasPage() {
   const [catsOpen, setCatsOpen] = useState(false);
   const month = currentMonth();
+  const scope = useScopeStore((s) => s.scope);
+  const hasCouple = useScopeStore((s) => s.hasCouple);
 
   const summary = useQuery({
     queryKey: ["summary", month],
@@ -34,6 +39,14 @@ export default function FinanzasPage() {
       )
     : 0;
 
+  // Empty state inteligente: si no hay categorías ni transactions, ofrecer
+  // crear varias de un toque. Aplica en cualquier scope (personal/couple).
+  const showStarter =
+    !cats.isLoading &&
+    !txs.isLoading &&
+    (cats.data?.length ?? 0) === 0 &&
+    (txs.data?.length ?? 0) === 0;
+
   return (
     <main className="mx-auto max-w-md px-5 pt-6 pb-32">
       <header className="mb-7">
@@ -44,6 +57,18 @@ export default function FinanzasPage() {
           Finanzas
         </h1>
       </header>
+
+      {/* Banner de pareja para users en personal sin pareja vinculada */}
+      {scope === "personal" && (
+        <CouplePromoBanner hasCouple={hasCouple} />
+      )}
+
+      {/* Starter de categorías cuando todo está vacío */}
+      {showStarter && (
+        <div className="mb-6">
+          <CategoriesStarter onDone={() => { /* re-render automático con invalidate */ }} />
+        </div>
+      )}
 
       {/* Hero balance */}
       <section className="card mb-6">
