@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import type { UpdateUserPreferences } from "@mi-centro/shared";
 import { ApiError, api } from "@/lib/api";
 import { useAuthStore } from "@/lib/auth-store";
+import { CoupleSection } from "./couple-section";
 
 export default function PerfilPage() {
   const router = useRouter();
@@ -228,6 +229,8 @@ export default function PerfilPage() {
           Cerrar sesión
         </button>
       </section>
+
+      <CoupleSection />
     </main>
   );
 }

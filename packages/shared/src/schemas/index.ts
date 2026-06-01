@@ -5,4 +5,5 @@ export * from "./finance.js";
 export * from "./routines.js";
 export * from "./diet.js";
 export * from "./reminders.js";
+export * from "./couples.js";
 export * from "./sync.js";

@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { AuthModule } from "./auth/auth.module";
+import { CouplesModule } from "./couples/couples.module";
 import { DbModule } from "./db/db.module";
 import { DietModule } from "./diet/diet.module";
 import { FinanceModule } from "./finance/finance.module";
@@ -17,6 +18,7 @@ import { UsersModule } from "./users/users.module";
     DbModule,
     AuthModule,
     UsersModule,
+    CouplesModule,
     FinanceModule,
     RoutinesModule,
     DietModule,

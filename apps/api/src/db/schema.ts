@@ -355,6 +355,59 @@ export const reminders = pgTable(
   }),
 );
 
+// ─── Couples (espacio compartido entre 2 personas) ────────────
+
+export const couples = pgTable("couples", {
+  id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
+  name: varchar("name", { length: 80 }).notNull().default("Nuestra cuenta"),
+  ownerId: uuid("owner_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  version: integer("version").notNull().default(1),
+});
+
+export const coupleMembers = pgTable(
+  "couple_members",
+  {
+    coupleId: uuid("couple_id")
+      .notNull()
+      .references(() => couples.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    role: varchar("role", { length: 10 }).notNull().default("member"),
+    joinedAt: timestamp("joined_at", { withTimezone: true }).notNull().defaultNow(),
+    invitedBy: uuid("invited_by").references(() => users.id, { onDelete: "set null" }),
+  },
+  (t) => ({
+    pk: { columns: [t.coupleId, t.userId], name: "couple_members_pkey" },
+    roleCheck: check(
+      "couple_members_role_check",
+      sql`${t.role} IN ('owner','member')`,
+    ),
+    userUnique: uniqueIndex("idx_couple_members_user_unique").on(t.userId),
+  }),
+);
+
+export const coupleInvitations = pgTable("couple_invitations", {
+  id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
+  coupleId: uuid("couple_id")
+    .notNull()
+    .references(() => couples.id, { onDelete: "cascade" }),
+  code: varchar("code", { length: 16 }).notNull().unique(),
+  invitedBy: uuid("invited_by")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+  acceptedBy: uuid("accepted_by").references(() => users.id, { onDelete: "set null" }),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 // ─── Tipos exportados ─────────────────────────────────────────
 
 export type User = typeof users.$inferSelect;
@@ -370,3 +423,6 @@ export type Dish = typeof dishes.$inferSelect;
 export type DishIngredient = typeof dishIngredients.$inferSelect;
 export type MealPlan = typeof mealPlans.$inferSelect;
 export type Reminder = typeof reminders.$inferSelect;
+export type Couple = typeof couples.$inferSelect;
+export type CoupleMember = typeof coupleMembers.$inferSelect;
+export type CoupleInvitation = typeof coupleInvitations.$inferSelect;

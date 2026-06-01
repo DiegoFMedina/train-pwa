@@ -1,6 +1,9 @@
 import type {
   AuthResponse,
   Category,
+  Couple,
+  CoupleInvitation,
+  CoupleWithMembers,
   CreateFinancialGoal,
   CreateMealPlan,
   CreateRoutine,
@@ -152,6 +155,38 @@ export const api = {
       quiet_hours_start?: string | null;
       quiet_hours_end?: string | null;
     }) => request<User>("/me", { method: "PATCH", body }),
+  },
+  couples: {
+    me: () => request<CoupleWithMembers | null>("/couples/me"),
+    create: (name: string) =>
+      request<CoupleWithMembers>("/couples", {
+        method: "POST",
+        body: { name },
+      }),
+    rename: (id: string, name: string) =>
+      request<Couple>(`/couples/${id}`, { method: "PATCH", body: { name } }),
+    remove: (id: string) =>
+      request<void>(`/couples/${id}`, { method: "DELETE" }),
+    leave: (id: string) =>
+      request<void>(`/couples/${id}/leave`, { method: "POST" }),
+    kick: (id: string, userId: string) =>
+      request<void>(`/couples/${id}/members/${userId}`, { method: "DELETE" }),
+    createInvitation: (id: string, ttlHours = 24) =>
+      request<CoupleInvitation>(`/couples/${id}/invitations`, {
+        method: "POST",
+        body: { ttl_hours: ttlHours },
+      }),
+    listInvitations: (id: string) =>
+      request<CoupleInvitation[]>(`/couples/${id}/invitations`),
+    revokeInvitation: (invitationId: string) =>
+      request<void>(`/couples/invitations/${invitationId}`, {
+        method: "DELETE",
+      }),
+    join: (code: string) =>
+      request<CoupleWithMembers>("/couples/join", {
+        method: "POST",
+        body: { code },
+      }),
   },
   categories: {
     list: () => request<Category[]>("/categories"),
