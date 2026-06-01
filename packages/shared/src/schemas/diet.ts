@@ -33,6 +33,10 @@ export type UpdateDish = z.infer<typeof UpdateDishSchema>;
 export const DishIngredientBaseSchema = z.object({
   dish_id: UuidSchema,
   name: z.string().min(1).max(120),
+  // Cantidad estructurada (preferida).
+  amount: z.number().finite().positive().nullable().optional(),
+  unit: z.string().max(20).nullable().optional(),
+  // Texto libre legacy (display fallback cuando amount IS NULL).
   quantity: z.string().max(60).nullable().optional(),
 });
 
@@ -81,7 +85,11 @@ export type UpdateMealPlan = z.infer<typeof UpdateMealPlanSchema>;
 
 export const ShoppingListItemSchema = z.object({
   name: z.string(),
-  quantity: z.string().nullable(),
+  amount: z.number().nullable(),
+  unit: z.string().nullable(),
+  // Texto presentable cuando hay legacy o mix de unidades.
+  display: z.string(),
+  occurrences: z.number().int().positive(),
   dishes: z.array(z.string()),
 });
 export type ShoppingListItem = z.infer<typeof ShoppingListItemSchema>;

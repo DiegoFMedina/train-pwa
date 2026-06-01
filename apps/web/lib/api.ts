@@ -247,13 +247,24 @@ export const api = {
   },
   dishes: {
     list: () => request<Dish[]>("/dishes"),
-    create: (body: { name: string; notes?: string | null; prep_minutes?: number | null }) =>
-      request<Dish>("/dishes", { method: "POST", body }),
+    create: (body: {
+      name: string;
+      notes?: string | null;
+      prep_minutes?: number | null;
+    }) => request<Dish>("/dishes", { method: "POST", body }),
     remove: (id: string) =>
       request<void>(`/dishes/${id}`, { method: "DELETE" }),
     listIngredients: (id: string) =>
       request<DishIngredient[]>(`/dishes/${id}/ingredients`),
-    addIngredient: (id: string, body: { name: string; quantity?: string | null }) =>
+    addIngredient: (
+      id: string,
+      body: {
+        name: string;
+        amount?: number | null;
+        unit?: string | null;
+        quantity?: string | null;
+      },
+    ) =>
       request<DishIngredient>(`/dishes/${id}/ingredients`, {
         method: "POST",
         body,
@@ -262,10 +273,18 @@ export const api = {
       request<void>(`/dishes/${id}/ingredients/${ingredientId}`, {
         method: "DELETE",
       }),
+    suggestions: (mealType?: MealType) =>
+      request<DishSuggestion[]>(
+        `/dishes/suggestions${mealType ? `?meal_type=${mealType}` : ""}`,
+      ),
   },
   mealPlans: {
     list: (date?: string) =>
       request<MealPlan[]>(`/meal-plans${date ? `?date=${date}` : ""}`),
+    listInRange: (from: string, to: string) =>
+      request<MealPlan[]>(
+        `/meal-plans?from=${from}&to=${to}`,
+      ),
     create: (body: CreateMealPlan) =>
       request<MealPlan>("/meal-plans", { method: "POST", body }),
     update: (id: string, body: UpdateMealPlan) =>
@@ -283,6 +302,14 @@ export const api = {
     },
   },
 };
+
+export interface DishSuggestion {
+  dish: Dish;
+  bucket: "stale" | "favorite" | "recent" | "never";
+  last_used_on: string | null;
+  uses_30d: number;
+  uses_total: number;
+}
 
 export interface RoutineInstance {
   routine: Routine;

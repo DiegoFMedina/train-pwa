@@ -278,6 +278,8 @@ export const dishIngredients = pgTable("dish_ingredients", {
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
   name: varchar("name", { length: 120 }).notNull(),
+  amount: numeric("amount", { precision: 10, scale: 3 }),
+  unit: varchar("unit", { length: 20 }),
   quantity: varchar("quantity", { length: 60 }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

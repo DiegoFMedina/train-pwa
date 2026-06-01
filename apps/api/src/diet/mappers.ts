@@ -33,6 +33,8 @@ export function toIngredient(
     user_id: r.userId,
     dish_id: r.dishId,
     name: r.name,
+    amount: r.amount === null ? null : Number(r.amount),
+    unit: r.unit,
     quantity: r.quantity,
     created_at: iso(r.createdAt),
     updated_at: iso(r.updatedAt),

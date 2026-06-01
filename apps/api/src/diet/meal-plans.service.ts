@@ -98,8 +98,11 @@ export class MealPlansService {
 
   /**
    * Lista de compras agregada: todos los ingredientes de los platos planeados
-   * en el rango [from, to]. Agrupa por nombre + cantidad (texto libre,
-   * concatena para que el usuario decida en el super).
+   * en el rango [from, to]. Estrategia:
+   *   - Agrupa por (lower(name), unit). Si dos ingredientes coinciden en
+   *     nombre+unidad, suma sus amount.
+   *   - Si amount es NULL (legacy o "al gusto"), cae al texto libre quantity
+   *     en el display, concatenando con " + ".
    */
   async shoppingList(
     userId: string,
@@ -109,6 +112,8 @@ export class MealPlansService {
     const rows = await this.db
       .select({
         ingredientName: dishIngredients.name,
+        amount: dishIngredients.amount,
+        unit: dishIngredients.unit,
         quantity: dishIngredients.quantity,
         dishName: dishes.name,
       })
@@ -131,34 +136,81 @@ export class MealPlansService {
         ),
       );
 
-    const byKey = new Map<
-      string,
-      { name: string; quantities: string[]; dishes: Set<string> }
-    >();
+    interface Bucket {
+      name: string;
+      unit: string | null;
+      amountSum: number | null;
+      legacyParts: string[];
+      occurrences: number;
+      dishes: Set<string>;
+    }
+
+    const byKey = new Map<string, Bucket>();
     for (const r of rows) {
-      const key = r.ingredientName.toLowerCase();
-      const existing = byKey.get(key);
-      if (existing) {
-        if (r.quantity) existing.quantities.push(r.quantity);
-        existing.dishes.add(r.dishName);
-      } else {
-        byKey.set(key, {
-          name: r.ingredientName,
-          quantities: r.quantity ? [r.quantity] : [],
-          dishes: new Set([r.dishName]),
-        });
+      const normalized = r.ingredientName.trim();
+      const unit = (r.unit ?? "").trim().toLowerCase() || null;
+      const key = `${normalized.toLowerCase()}|${unit ?? ""}`;
+      let bucket = byKey.get(key);
+      if (!bucket) {
+        bucket = {
+          name: normalized,
+          unit,
+          amountSum: null,
+          legacyParts: [],
+          occurrences: 0,
+          dishes: new Set(),
+        };
+        byKey.set(key, bucket);
+      }
+      bucket.occurrences++;
+      bucket.dishes.add(r.dishName);
+
+      if (r.amount !== null) {
+        const n = Number(r.amount);
+        bucket.amountSum = (bucket.amountSum ?? 0) + n;
+      } else if (r.quantity && r.quantity.trim()) {
+        bucket.legacyParts.push(r.quantity.trim());
       }
     }
 
     const items: ShoppingListItem[] = Array.from(byKey.values())
-      .map((v) => ({
-        name: v.name,
-        quantity: v.quantities.length > 0 ? v.quantities.join(" + ") : null,
-        dishes: Array.from(v.dishes).sort(),
-      }))
-      .sort((a, b) => a.name.localeCompare(b.name));
+      .map((b) => {
+        const display = formatDisplay(b);
+        return {
+          name: b.name,
+          amount: b.amountSum,
+          unit: b.unit,
+          display,
+          occurrences: b.occurrences,
+          dishes: Array.from(b.dishes).sort(),
+        };
+      })
+      .sort((a, b) => a.name.localeCompare(b.name, "es"));
 
     return { from, to, items };
+  }
+
+  /**
+   * Comidas en rango. Sirve para la vista calendario mensual.
+   */
+  async listInRange(
+    userId: string,
+    from: string,
+    to: string,
+  ): Promise<MealPlan[]> {
+    const rows = await this.db
+      .select()
+      .from(mealPlans)
+      .where(
+        and(
+          eq(mealPlans.userId, userId),
+          gte(mealPlans.planDate, from),
+          lte(mealPlans.planDate, to),
+          isNull(mealPlans.deletedAt),
+        ),
+      )
+      .orderBy(asc(mealPlans.planDate), asc(mealPlans.mealType));
+    return rows.map(toMealPlan);
   }
 
   private async findById(userId: string, id: string): Promise<MealPlan> {
@@ -176,4 +228,35 @@ export class MealPlansService {
     if (!row) throw new NotFoundException("Comida no encontrada");
     return toMealPlan(row);
   }
+}
+
+/** Formato de display amigable según la mezcla de datos en el bucket. */
+function formatDisplay(b: {
+  unit: string | null;
+  amountSum: number | null;
+  legacyParts: string[];
+  occurrences: number;
+}): string {
+  const parts: string[] = [];
+
+  if (b.amountSum !== null && b.unit) {
+    parts.push(`${formatAmount(b.amountSum)} ${b.unit}`);
+  } else if (b.amountSum !== null) {
+    parts.push(formatAmount(b.amountSum));
+  }
+
+  if (b.legacyParts.length > 0) {
+    parts.push(b.legacyParts.join(" + "));
+  }
+
+  if (parts.length === 0) return `× ${b.occurrences}`;
+  return parts.join(" + ");
+}
+
+/** Quita decimales innecesarios: 1.500 → "1.5", 2.000 → "2". */
+function formatAmount(n: number): string {
+  if (Number.isInteger(n)) return String(n);
+  return Number(n.toFixed(3))
+    .toString()
+    .replace(/\.?0+$/, "");
 }

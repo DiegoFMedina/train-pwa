@@ -11,6 +11,8 @@ interface Props {
   dishes: Dish[];
 }
 
+const UNIT_SUGGESTIONS = ["g", "kg", "ml", "L", "un", "cda", "cdita", "taza", "pizca", "rebanada"];
+
 export function DishesSheet({ open, onClose, dishes }: Props) {
   const qc = useQueryClient();
   const [name, setName] = useState("");
@@ -30,6 +32,7 @@ export function DishesSheet({ open, onClose, dishes }: Props) {
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["dishes"] });
     qc.invalidateQueries({ queryKey: ["shopping-list"] });
+    qc.invalidateQueries({ queryKey: ["dish-suggestions"] });
   };
 
   const createMut = useMutation({
@@ -38,11 +41,12 @@ export function DishesSheet({ open, onClose, dishes }: Props) {
         name: name.trim(),
         prep_minutes: prep ? Number(prep) : null,
       }),
-    onSuccess: () => {
+    onSuccess: (created) => {
       invalidate();
       setName("");
       setPrep("");
       setError(null);
+      setExpanded(created.id); // expandir el recién creado para que agregues ingredientes
     },
     onError: (e: unknown) => setError(toMessage(e)),
   });
@@ -60,25 +64,22 @@ export function DishesSheet({ open, onClose, dishes }: Props) {
         type="button"
         aria-label="Cerrar"
         onClick={onClose}
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/70 backdrop-blur-md"
       />
 
-      <div className="absolute inset-x-0 bottom-0 max-h-[88dvh] overflow-y-auto rounded-t-3xl border-t border-[color:var(--color-line)] bg-[color:var(--color-bg)] px-5 pt-3 pb-[max(2rem,env(safe-area-inset-bottom))]">
+      <div className="absolute inset-x-0 bottom-0 max-h-[92dvh] overflow-y-auto rounded-t-[28px] border-t border-[color:var(--color-line)] bg-[color:var(--color-bg)]/95 backdrop-blur-2xl px-5 pt-3 pb-[max(2rem,env(safe-area-inset-bottom))]">
         <div className="mx-auto mb-4 h-1 w-12 rounded-full bg-[color:var(--color-line)]" />
 
-        <header className="mb-5 flex items-center justify-between">
+        <header className="mb-5 flex items-end justify-between">
           <div>
             <p className="eyebrow mb-1">Catálogo</p>
-            <h2 className="text-2xl font-light" style={{ fontFamily: "var(--font-serif)" }}>
-              Mis platos
-            </h2>
+            <h2 className="title-display text-3xl">Mis platos</h2>
           </div>
           <button onClick={onClose} className="pill">
             Cerrar
           </button>
         </header>
 
-        {/* Crear plato */}
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -104,7 +105,7 @@ export function DishesSheet({ open, onClose, dishes }: Props) {
             <input
               type="number"
               className="input mono"
-              placeholder="Tiempo de prep (min)"
+              placeholder="Prep (min)"
               value={prep}
               onChange={(e) => setPrep(e.target.value)}
               min={0}
@@ -112,7 +113,7 @@ export function DishesSheet({ open, onClose, dishes }: Props) {
             />
             <button
               type="submit"
-              className="btn-primary px-4 !w-auto"
+              className="btn-primary !w-auto px-5"
               disabled={createMut.isPending}
             >
               {createMut.isPending ? "…" : "Crear"}
@@ -121,7 +122,6 @@ export function DishesSheet({ open, onClose, dishes }: Props) {
           {error && <p className="text-sm text-[color:var(--color-down)]">{error}</p>}
         </form>
 
-        {/* Lista de platos */}
         <h3 className="text-sm font-semibold text-[color:var(--color-ink-soft)] mb-3">
           Tus platos ({dishes.length})
         </h3>
@@ -169,19 +169,22 @@ function DishCard({
     enabled: expanded,
   });
   const [ingName, setIngName] = useState("");
-  const [ingQty, setIngQty] = useState("");
+  const [ingAmount, setIngAmount] = useState("");
+  const [ingUnit, setIngUnit] = useState("g");
 
   const addMut = useMutation({
     mutationFn: () =>
       api.dishes.addIngredient(dish.id, {
         name: ingName.trim(),
-        quantity: ingQty.trim() || null,
+        amount: ingAmount ? Number(ingAmount) : null,
+        unit: ingUnit.trim() || null,
+        quantity: null,
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["dishes", dish.id, "ingredients"] });
       qc.invalidateQueries({ queryKey: ["shopping-list"] });
       setIngName("");
-      setIngQty("");
+      setIngAmount("");
     },
   });
 
@@ -194,8 +197,8 @@ function DishCard({
   });
 
   return (
-    <div className="card">
-      <div className="flex items-center gap-3">
+    <div className="card !p-0 overflow-hidden">
+      <div className="flex items-center gap-2 p-4">
         <button
           type="button"
           onClick={onToggle}
@@ -227,7 +230,7 @@ function DishCard({
       </div>
 
       {expanded && (
-        <div className="mt-3 pt-3 border-t border-[color:var(--color-line)] space-y-2">
+        <div className="border-t border-[color:var(--color-line)] px-4 py-3 space-y-3">
           {ingredients.isLoading ? (
             <div className="h-12 animate-pulse bg-[color:var(--color-surface-2)] rounded-lg" />
           ) : (
@@ -238,25 +241,28 @@ function DishCard({
                 </p>
               ) : (
                 <div className="space-y-1.5">
-                  {ingredients.data!.map((ing) => (
-                    <div key={ing.id} className="flex items-center gap-2 text-sm">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[color:var(--color-accent)]" />
-                      <span className="flex-1 truncate">{ing.name}</span>
-                      {ing.quantity && (
+                  {ingredients.data!.map((ing) => {
+                    const display = ing.amount !== null && ing.amount !== undefined
+                      ? `${formatNum(ing.amount)}${ing.unit ? " " + ing.unit : ""}`
+                      : ing.quantity ?? "al gusto";
+                    return (
+                      <div key={ing.id} className="flex items-center gap-2 text-sm">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[color:var(--color-accent)]" />
+                        <span className="flex-1 truncate">{ing.name}</span>
                         <span className="mono text-xs text-[color:var(--color-ink-soft)]">
-                          {ing.quantity}
+                          {display}
                         </span>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => removeMut.mutate(ing.id)}
-                        className="text-xs text-[color:var(--color-down)] px-1"
-                        aria-label={`Borrar ${ing.name}`}
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  ))}
+                        <button
+                          type="button"
+                          onClick={() => removeMut.mutate(ing.id)}
+                          className="text-xs text-[color:var(--color-down)] px-1"
+                          aria-label={`Borrar ${ing.name}`}
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
 
@@ -265,27 +271,44 @@ function DishCard({
                   e.preventDefault();
                   if (ingName.trim()) addMut.mutate();
                 }}
-                className="grid grid-cols-[2fr_1fr_auto] gap-1.5 pt-1"
+                className="space-y-1.5 pt-1"
               >
                 <input
                   className="input !py-1.5 !text-xs"
-                  placeholder="Ingrediente"
+                  placeholder="Ingrediente (ej: Pollo)"
                   value={ingName}
                   onChange={(e) => setIngName(e.target.value)}
                 />
-                <input
-                  className="input !py-1.5 !text-xs"
-                  placeholder="200 g"
-                  value={ingQty}
-                  onChange={(e) => setIngQty(e.target.value)}
-                />
-                <button
-                  type="submit"
-                  disabled={!ingName.trim() || addMut.isPending}
-                  className="btn-primary !w-auto !py-1.5 !px-3 text-xs"
-                >
-                  +
-                </button>
+                <div className="grid grid-cols-[1fr_1fr_auto] gap-1.5">
+                  <input
+                    className="input !py-1.5 !text-xs mono"
+                    type="number"
+                    inputMode="decimal"
+                    step="any"
+                    placeholder="Cantidad"
+                    value={ingAmount}
+                    onChange={(e) => setIngAmount(e.target.value)}
+                  />
+                  <input
+                    className="input !py-1.5 !text-xs mono"
+                    list="ing-units"
+                    placeholder="Unidad"
+                    value={ingUnit}
+                    onChange={(e) => setIngUnit(e.target.value)}
+                  />
+                  <datalist id="ing-units">
+                    {UNIT_SUGGESTIONS.map((u) => (
+                      <option key={u} value={u} />
+                    ))}
+                  </datalist>
+                  <button
+                    type="submit"
+                    disabled={!ingName.trim() || addMut.isPending}
+                    className="btn-primary !w-auto !py-1.5 !px-3 text-xs"
+                  >
+                    +
+                  </button>
+                </div>
               </form>
             </>
           )}
@@ -293,6 +316,13 @@ function DishCard({
       )}
     </div>
   );
+}
+
+function formatNum(n: number): string {
+  if (Number.isInteger(n)) return String(n);
+  return Number(n.toFixed(3))
+    .toString()
+    .replace(/\.?0+$/, "");
 }
 
 function toMessage(e: unknown): string {

@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -9,13 +10,16 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
 } from "@nestjs/common";
 import { z } from "zod";
 import {
   CreateDishIngredientSchema,
   CreateDishSchema,
+  MealTypeSchema,
   UpdateDishSchema,
   type CreateDish,
+  type MealType,
   type UpdateDish,
 } from "@mi-centro/shared";
 import { CurrentUser, type AuthUser } from "../auth/auth.decorators";
@@ -34,6 +38,23 @@ export class DishesController {
   @Get()
   list(@CurrentUser() user: AuthUser) {
     return this.svc.list(user.id);
+  }
+
+  /**
+   * Sugerencias para planificar: prioriza platos no usados hace tiempo.
+   * Opcional ?meal_type para sesgar por tipo de comida.
+   */
+  @Get("suggestions")
+  suggestions(@CurrentUser() user: AuthUser, @Query("meal_type") mealType?: string) {
+    let mt: MealType | undefined;
+    if (mealType) {
+      const parsed = MealTypeSchema.safeParse(mealType);
+      if (!parsed.success) {
+        throw new BadRequestException(`meal_type inválido: ${mealType}`);
+      }
+      mt = parsed.data;
+    }
+    return this.svc.suggestions(user.id, mt);
   }
 
   @Post()

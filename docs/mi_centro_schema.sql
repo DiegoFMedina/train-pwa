@@ -199,7 +199,12 @@ CREATE TABLE dish_ingredients (
     dish_id     UUID NOT NULL REFERENCES dishes(id) ON DELETE CASCADE,
     user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     name        VARCHAR(120) NOT NULL,
-    quantity    VARCHAR(60),               -- texto libre simple: "200 g", "2 un"
+    -- Cantidad estructurada: permite sumar la lista de compras por
+    -- (lower(name), unit). amount NULL = "al gusto" / sin medir.
+    amount      NUMERIC(10,3),
+    unit        VARCHAR(20),
+    -- Texto libre legacy. Display fallback cuando amount IS NULL.
+    quantity    VARCHAR(60),
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
     deleted_at  TIMESTAMPTZ,

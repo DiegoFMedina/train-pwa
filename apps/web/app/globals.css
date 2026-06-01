@@ -43,11 +43,44 @@
 
 @layer components {
   .card {
-    background: var(--color-surface);
+    background:
+      linear-gradient(180deg, color-mix(in oklab, var(--color-surface) 100%, transparent), color-mix(in oklab, var(--color-surface-2) 60%, transparent)),
+      var(--color-surface);
     border: 1px solid var(--color-line);
     border-radius: var(--radius-card);
-    padding: 18px 18px;
-    backdrop-filter: blur(8px);
+    padding: 18px;
+    backdrop-filter: blur(20px) saturate(140%);
+    -webkit-backdrop-filter: blur(20px) saturate(140%);
+    box-shadow:
+      inset 0 1px 0 color-mix(in oklab, white 6%, transparent),
+      0 8px 24px -16px rgba(0, 0, 0, 0.6);
+  }
+
+  .card-interactive {
+    transition: transform 220ms cubic-bezier(.22,1,.36,1), box-shadow 220ms ease;
+  }
+  .card-interactive:hover {
+    transform: translateY(-2px);
+    box-shadow:
+      inset 0 1px 0 color-mix(in oklab, white 10%, transparent),
+      0 16px 40px -16px rgba(0, 0, 0, 0.75);
+  }
+  .card-interactive:active {
+    transform: translateY(0);
+  }
+
+  .title-display {
+    font-family: var(--font-serif);
+    font-weight: 300;
+    letter-spacing: -0.02em;
+    line-height: 0.95;
+  }
+
+  .gradient-text {
+    background: linear-gradient(135deg, var(--color-accent), var(--color-accent-2));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
   }
 
   .input {

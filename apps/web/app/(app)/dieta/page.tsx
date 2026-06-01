@@ -1,207 +1,187 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
-import type { MealType } from "@mi-centro/shared";
+import { useQuery } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
+import type { MealPlan } from "@mi-centro/shared";
 import { api } from "@/lib/api";
+import {
+  addDays,
+  monthLabel,
+  monthRange,
+  parseYmd,
+  todayYmd,
+  weekRangeContaining,
+} from "@/lib/dates";
+import { DayPlannerSheet } from "./_components/day-planner-sheet";
+import { MonthCalendar } from "./_components/month-calendar";
 import { DishesSheet } from "./dishes-sheet";
-import { NewMealForm } from "./new-meal";
 
-function today(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
-const MEAL_LABELS: Record<MealType, { name: string; emoji: string }> = {
-  breakfast: { name: "Desayuno", emoji: "☀️" },
-  lunch: { name: "Almuerzo", emoji: "🍽️" },
-  dinner: { name: "Cena", emoji: "🌙" },
-  snack: { name: "Snack", emoji: "✦" },
-};
+type ShoppingTab = "week" | "month";
 
 export default function DietaPage() {
-  const qc = useQueryClient();
+  const today = todayYmd();
+  const todayDate = parseYmd(today);
+  const [year, setYear] = useState(todayDate.getUTCFullYear());
+  const [month0, setMonth0] = useState(todayDate.getUTCMonth());
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [dishesOpen, setDishesOpen] = useState(false);
-  const date = today();
+  const [shoppingTab, setShoppingTab] = useState<ShoppingTab>("week");
 
-  const meals = useQuery({
-    queryKey: ["meal-plans", date],
-    queryFn: () => api.mealPlans.list(date),
+  const range = useMemo(() => monthRange(year, month0), [year, month0]);
+
+  const plansQ = useQuery({
+    queryKey: ["meal-plans", "range", range.from, range.to],
+    queryFn: () => api.mealPlans.listInRange(range.from, range.to),
   });
-  const dishes = useQuery({
+
+  const dishesQ = useQuery({
     queryKey: ["dishes"],
     queryFn: () => api.dishes.list(),
   });
-  const shopping = useQuery({
-    queryKey: ["shopping-list"],
-    queryFn: () => api.mealPlans.shoppingList(),
+
+  const shoppingRange = useMemo(() => {
+    if (shoppingTab === "week") return weekRangeContaining(today);
+    return range;
+  }, [shoppingTab, today, range]);
+
+  const shoppingQ = useQuery({
+    queryKey: ["shopping-list", shoppingRange.from, shoppingRange.to],
+    queryFn: () => api.mealPlans.shoppingList(shoppingRange.from, shoppingRange.to),
   });
 
-  const dishMap = new Map((dishes.data ?? []).map((d) => [d.id, d]));
+  const plansByDay = useMemo(() => {
+    const m = new Map<string, MealPlan[]>();
+    for (const p of plansQ.data ?? []) {
+      const arr = m.get(p.plan_date) ?? [];
+      arr.push(p);
+      m.set(p.plan_date, arr);
+    }
+    return m;
+  }, [plansQ.data]);
 
-  const toggleStatusMut = useMutation({
-    mutationFn: (input: { id: string; status: "planned" | "eaten" | "skipped" }) =>
-      api.mealPlans.update(input.id, { status: input.status }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["meal-plans"] });
-    },
-  });
+  const monthStats = useMemo(() => {
+    const plans = plansQ.data ?? [];
+    const planned = plans.length;
+    const eaten = plans.filter((p) => p.status === "eaten").length;
+    const distinctDays = new Set(plans.map((p) => p.plan_date)).size;
+    return { planned, eaten, distinctDays };
+  }, [plansQ.data]);
 
-  const deleteMut = useMutation({
-    mutationFn: (id: string) => api.mealPlans.remove(id),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["meal-plans"] });
-      qc.invalidateQueries({ queryKey: ["shopping-list"] });
-    },
-  });
+  const nav = (delta: number) => {
+    let nm = month0 + delta;
+    let ny = year;
+    if (nm < 0) {
+      nm = 11;
+      ny -= 1;
+    } else if (nm > 11) {
+      nm = 0;
+      ny += 1;
+    }
+    setMonth0(nm);
+    setYear(ny);
+  };
 
   return (
     <main className="mx-auto max-w-md min-h-dvh px-5 pt-10 pb-32">
-      <header className="mb-7">
-        <p className="eyebrow mb-1.5">Plan del día</p>
-        <h1 className="text-5xl font-light" style={{ fontFamily: "var(--font-serif)" }}>
-          Dieta
+      {/* Header */}
+      <header className="mb-6">
+        <p className="eyebrow mb-1.5">Tu mes en comidas</p>
+        <h1 className="title-display text-5xl">
+          <span className="gradient-text">Dieta</span>
         </h1>
       </header>
 
-      {/* Aviso matutino — placeholder */}
-      <div className="card mb-6 flex items-center gap-3">
-        <span className="w-9 h-9 rounded-full grid place-items-center text-lg flex-shrink-0 bg-[color:var(--color-surface-2)]">
-          ✦
-        </span>
-        <div className="flex-1">
-          <p className="text-sm font-medium">Aviso matutino</p>
-          <p className="text-xs text-[color:var(--color-ink-faint)]">
-            Te recordará qué cocinar a las 08:00 (cuando entre push)
-          </p>
-        </div>
+      {/* Navegador de mes */}
+      <div className="flex items-center justify-between mb-4">
+        <button
+          onClick={() => nav(-1)}
+          aria-label="Mes anterior"
+          className="w-10 h-10 rounded-full grid place-items-center bg-[color:var(--color-surface)] hover:bg-[color:var(--color-surface-2)] border border-[color:var(--color-line)] transition active:scale-90"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+            <path d="M15 19l-7-7 7-7" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+        <h2 className="text-lg font-semibold capitalize">
+          {monthLabel(year, month0)}
+        </h2>
+        <button
+          onClick={() => nav(1)}
+          aria-label="Mes siguiente"
+          className="w-10 h-10 rounded-full grid place-items-center bg-[color:var(--color-surface)] hover:bg-[color:var(--color-surface-2)] border border-[color:var(--color-line)] transition active:scale-90"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+            <path d="M9 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
       </div>
 
-      {/* Comidas de hoy */}
-      <section className="mb-6">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold text-[color:var(--color-ink-soft)]">
-            Comidas de hoy
-          </h2>
-          <button
-            onClick={() => setDishesOpen(true)}
-            className="text-xs text-[color:var(--color-accent)] font-medium"
-          >
-            Mis platos
-          </button>
-        </div>
-
-        {meals.isLoading ? (
-          <div className="card h-24 animate-pulse" />
-        ) : (meals.data ?? []).length === 0 ? (
-          <div className="card text-center text-sm text-[color:var(--color-ink-faint)]">
-            Sin comidas planeadas para hoy.
-          </div>
+      {/* Calendario */}
+      <section className="card mb-3">
+        {plansQ.isLoading ? (
+          <div className="h-72 animate-pulse rounded-xl bg-[color:var(--color-surface-2)]" />
         ) : (
-          <div className="space-y-2">
-            {meals.data!.map((m) => {
-              const dish = m.dish_id ? dishMap.get(m.dish_id) : null;
-              const eaten = m.status === "eaten";
-              const meta = MEAL_LABELS[m.meal_type];
-              return (
-                <div
-                  key={m.id}
-                  className={`card flex items-stretch gap-3 transition-opacity ${
-                    eaten ? "opacity-60" : ""
-                  }`}
-                >
-                  <div className="flex-shrink-0 pr-3 border-r border-[color:var(--color-line)] min-w-[64px]">
-                    <p className="mono text-lg font-medium">
-                      {m.eat_time ?? "—"}
-                    </p>
-                    <p className="text-[10px] uppercase tracking-wide text-[color:var(--color-ink-faint)]">
-                      {meta.name}
-                    </p>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className={`font-medium truncate ${eaten ? "line-through" : ""}`}>
-                      {dish?.name ?? "Sin plato"} {meta.emoji}
-                    </p>
-                    <p className="text-xs text-[color:var(--color-ink-faint)] mt-0.5">
-                      {m.cook_time
-                        ? `Cocinar ${m.cook_time}${dish?.prep_minutes ? ` · ~${dish.prep_minutes} min` : ""}`
-                        : "Sin hora de cocción"}
-                    </p>
-                  </div>
-                  <div className="flex flex-col gap-1 items-end">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        toggleStatusMut.mutate({
-                          id: m.id,
-                          status: eaten ? "planned" : "eaten",
-                        })
-                      }
-                      className={`text-[10px] px-2 py-1 rounded-md font-medium ${
-                        eaten
-                          ? "bg-[color:var(--color-up)] text-[#0a1a12]"
-                          : "bg-[color:var(--color-surface-2)] text-[color:var(--color-ink-soft)]"
-                      }`}
-                      aria-pressed={eaten}
-                    >
-                      {eaten ? "✓ Comido" : "Marcar"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (confirm("¿Borrar esta comida?")) deleteMut.mutate(m.id);
-                      }}
-                      className="text-[10px] px-2 py-1 rounded-md text-[color:var(--color-down)]"
-                      aria-label="Borrar"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+          <MonthCalendar
+            year={year}
+            month0={month0}
+            plansByDay={plansByDay}
+            selectedYmd={selectedDay}
+            onSelect={setSelectedDay}
+          />
         )}
       </section>
 
-      {/* Crear comida */}
-      <section className="mb-6">
-        <NewMealForm dishes={dishes.data ?? []} date={date} />
-      </section>
+      {/* Stats del mes (bento) */}
+      <div className="grid grid-cols-3 gap-2 mb-6">
+        <Stat label="Planeadas" value={monthStats.planned} />
+        <Stat label="Comidas" value={monthStats.eaten} accent="up" />
+        <Stat label="Días" value={monthStats.distinctDays} />
+      </div>
 
       {/* Lista de compras */}
-      <section>
+      <section className="mb-6">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-semibold text-[color:var(--color-ink-soft)]">
             Lista de compras
           </h2>
-          {shopping.data && (
-            <span className="text-xs text-[color:var(--color-ink-faint)]">
-              {shopping.data.from} → {shopping.data.to}
-            </span>
-          )}
+          <div className="flex gap-1 p-0.5 rounded-full bg-[color:var(--color-surface-2)]">
+            <TabButton active={shoppingTab === "week"} onClick={() => setShoppingTab("week")}>
+              Semana
+            </TabButton>
+            <TabButton active={shoppingTab === "month"} onClick={() => setShoppingTab("month")}>
+              Mes
+            </TabButton>
+          </div>
         </div>
-        {shopping.isLoading ? (
-          <div className="card h-20 animate-pulse" />
-        ) : (shopping.data?.items.length ?? 0) === 0 ? (
-          <div className="card text-center text-sm text-[color:var(--color-ink-faint)]">
-            Planea comidas con platos que tengan ingredientes para llenar tu lista.
+
+        <p className="text-[10px] text-[color:var(--color-ink-faint)] mb-2 mono">
+          {shoppingRange.from} → {shoppingRange.to}
+        </p>
+
+        {shoppingQ.isLoading ? (
+          <div className="card h-24 animate-pulse" />
+        ) : (shoppingQ.data?.items.length ?? 0) === 0 ? (
+          <div className="card text-center text-sm text-[color:var(--color-ink-faint)] py-8">
+            Sin compras —{" "}
+            {shoppingTab === "week"
+              ? "esta semana no hay platos planeados"
+              : "este mes no hay platos planeados"}
+            .
           </div>
         ) : (
-          <div className="card space-y-2">
-            {shopping.data!.items.map((it) => (
-              <div key={it.name} className="flex items-start gap-3">
+          <div className="card space-y-2.5">
+            {shoppingQ.data!.items.map((it) => (
+              <div key={`${it.name}-${it.unit ?? ""}`} className="flex items-start gap-3">
                 <span className="w-1.5 h-1.5 rounded-full bg-[color:var(--color-accent)] flex-shrink-0 mt-2" />
                 <div className="flex-1 min-w-0">
-                  <p className="font-medium">
-                    {it.name}
-                    {it.quantity && (
-                      <span className="ml-2 text-xs text-[color:var(--color-ink-soft)] mono">
-                        {it.quantity}
-                      </span>
-                    )}
-                  </p>
+                  <div className="flex items-baseline justify-between gap-2">
+                    <p className="font-medium truncate">{it.name}</p>
+                    <p className="mono text-xs text-[color:var(--color-accent)] font-semibold flex-shrink-0">
+                      {it.display}
+                    </p>
+                  </div>
                   <p className="text-[10px] text-[color:var(--color-ink-faint)] truncate">
-                    {it.dishes.join(", ")}
+                    {it.occurrences}× · {it.dishes.join(", ")}
                   </p>
                 </div>
               </div>
@@ -210,11 +190,94 @@ export default function DietaPage() {
         )}
       </section>
 
+      {/* Catálogo CTA */}
+      <section>
+        <button
+          onClick={() => setDishesOpen(true)}
+          className="w-full card card-interactive flex items-center gap-3 text-left"
+        >
+          <span
+            className="w-10 h-10 rounded-2xl grid place-items-center text-lg flex-shrink-0"
+            style={{
+              background: "color-mix(in oklab, var(--color-accent) 18%, transparent)",
+              color: "var(--color-accent)",
+            }}
+          >
+            📖
+          </span>
+          <div className="flex-1">
+            <p className="font-medium">Mi catálogo</p>
+            <p className="text-xs text-[color:var(--color-ink-faint)]">
+              {(dishesQ.data ?? []).length} platos · gestionar ingredientes
+            </p>
+          </div>
+          <span className="text-[color:var(--color-ink-faint)]">›</span>
+        </button>
+      </section>
+
+      {selectedDay && (
+        <DayPlannerSheet
+          ymd={selectedDay}
+          plans={plansByDay.get(selectedDay) ?? []}
+          dishes={dishesQ.data ?? []}
+          onClose={() => setSelectedDay(null)}
+        />
+      )}
+
       <DishesSheet
         open={dishesOpen}
         onClose={() => setDishesOpen(false)}
-        dishes={dishes.data ?? []}
+        dishes={dishesQ.data ?? []}
       />
     </main>
+  );
+}
+
+function Stat({
+  label,
+  value,
+  accent,
+}: {
+  label: string;
+  value: number;
+  accent?: "up";
+}) {
+  return (
+    <div className="card !p-3 text-center">
+      <p
+        className={`mono text-2xl font-light ${
+          accent === "up" ? "text-[color:var(--color-up)]" : ""
+        }`}
+      >
+        {value}
+      </p>
+      <p className="text-[10px] uppercase tracking-wider text-[color:var(--color-ink-faint)] mt-0.5">
+        {label}
+      </p>
+    </div>
+  );
+}
+
+function TabButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      aria-pressed={active}
+      className={`px-3 py-1 rounded-full text-xs font-medium transition ${
+        active
+          ? "bg-[color:var(--color-bg)] text-[color:var(--color-ink)] shadow-sm"
+          : "text-[color:var(--color-ink-soft)]"
+      }`}
+    >
+      {children}
+    </button>
   );
 }

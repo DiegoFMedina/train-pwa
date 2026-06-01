@@ -28,9 +28,27 @@ const YMD_RE = /^\d{4}-\d{2}-\d{2}$/;
 export class MealPlansController {
   constructor(private readonly svc: MealPlansService) {}
 
-  /** Comidas de un día. Default: hoy. */
+  /**
+   * Comidas en rango. Modos:
+   *   - ?date=YYYY-MM-DD  → solo ese día (compat con UI anterior)
+   *   - ?from&to          → rango inclusivo (para vista calendario)
+   *   - sin params        → hoy
+   */
   @Get()
-  list(@CurrentUser() user: AuthUser, @Query("date") date?: string) {
+  list(
+    @CurrentUser() user: AuthUser,
+    @Query("date") date?: string,
+    @Query("from") from?: string,
+    @Query("to") to?: string,
+  ) {
+    if (from || to) {
+      const f = from ?? new Date().toISOString().slice(0, 10);
+      const t = to ?? f;
+      if (!YMD_RE.test(f) || !YMD_RE.test(t)) {
+        throw new BadRequestException("from/to en formato YYYY-MM-DD");
+      }
+      return this.svc.listInRange(user.id, f, t);
+    }
     const d = date ?? new Date().toISOString().slice(0, 10);
     if (!YMD_RE.test(d)) {
       throw new BadRequestException(`date inválido: ${d} (esperado YYYY-MM-DD)`);
