@@ -20,6 +20,7 @@ export const RoutineBaseSchema = z.object({
 
 export const RoutineSchema = RoutineBaseSchema.merge(SyncFieldsSchema).extend({
   user_id: UuidSchema,
+  couple_id: UuidSchema.nullable(),
 });
 export type Routine = z.infer<typeof RoutineSchema>;
 

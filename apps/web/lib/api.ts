@@ -295,7 +295,7 @@ export const api = {
       if (from) q.set("from", from);
       if (to) q.set("to", to);
       const s = q.toString();
-      return request<RoutineStats>(`/routines/${id}/stats${s ? `?${s}` : ""}`);
+      return request<RoutineStats[]>(`/routines/${id}/stats${s ? `?${s}` : ""}`);
     },
   },
   dishes: {
@@ -326,10 +326,15 @@ export const api = {
       request<void>(`/dishes/${id}/ingredients/${ingredientId}`, {
         method: "DELETE",
       }),
-    suggestions: (mealType?: MealType) =>
-      request<DishSuggestion[]>(
-        `/dishes/suggestions${mealType ? `?meal_type=${mealType}` : ""}`,
-      ),
+    suggestions: (mealType?: MealType, date?: string) => {
+      const q = new URLSearchParams();
+      if (mealType) q.set("meal_type", mealType);
+      if (date) q.set("date", date);
+      const s = q.toString();
+      return request<DishSuggestion[]>(
+        `/dishes/suggestions${s ? `?${s}` : ""}`,
+      );
+    },
   },
   mealPlans: {
     list: (date?: string) =>
@@ -364,14 +369,25 @@ export interface DishSuggestion {
   uses_total: number;
 }
 
+/**
+ * Estado de cumplimiento de UNA rutina, para todos los members del scope.
+ *   - Personal: members.length === 1 (el user actual).
+ *   - Couple:   members.length === 2 (cada miembro y su estado).
+ */
 export interface RoutineInstance {
   routine: Routine;
   due_on: string;
-  status: RoutineLogStatus;
-  log_id: string | null;
+  members: Array<{
+    user_id: string;
+    user_name: string;
+    status: RoutineLogStatus;
+    log_id: string | null;
+  }>;
 }
 
 export interface RoutineStats {
+  user_id: string;
+  user_name: string;
   routine_id: string;
   range_from: string;
   range_to: string;

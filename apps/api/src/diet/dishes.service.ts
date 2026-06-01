@@ -155,8 +155,8 @@ export class DishesService {
   async suggestions(
     userId: string,
     mealType?: MealType,
+    excludeDate?: string,
   ): Promise<DishSuggestion[]> {
-    const today = new Date().toISOString().slice(0, 10);
     const ago30 = new Date();
     ago30.setUTCDate(ago30.getUTCDate() - 30);
     const ago30Str = ago30.toISOString().slice(0, 10);
@@ -228,8 +228,28 @@ export class DishesService {
       return b.uses_total - a.uses_total;
     });
 
-    // Excluir lo cocinado HOY (no tiene sentido sugerirlo otra vez para hoy)
-    return result.filter((r) => r.last_used_on !== today);
+    // Excluir solo los platos ya planeados en la fecha+meal_type que el
+    // usuario está armando ahora (si pasó excludeDate). Antes filtrábamos
+    // por "today" globalmente, lo que ocultaba un plato cocinado hoy de
+    // las sugerencias para CUALQUIER otra fecha — un bug.
+    if (excludeDate) {
+      const alreadyPlanned = await this.db
+        .select({ dishId: mealPlans.dishId })
+        .from(mealPlans)
+        .where(
+          and(
+            eq(mealPlans.userId, userId),
+            eq(mealPlans.planDate, excludeDate),
+            mealType ? eq(mealPlans.mealType, mealType) : undefined,
+            isNull(mealPlans.deletedAt),
+          ),
+        );
+      const excluded = new Set(
+        alreadyPlanned.map((p) => p.dishId).filter((id): id is string => !!id),
+      );
+      return result.filter((r) => !excluded.has(r.dish.id));
+    }
+    return result;
   }
 
   private async findById(userId: string, id: string): Promise<Dish> {

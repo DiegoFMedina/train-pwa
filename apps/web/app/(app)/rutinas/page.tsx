@@ -1,8 +1,10 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
-import { api } from "@/lib/api";
+import { useMemo, useState } from "react";
+import { api, type RoutineInstance } from "@/lib/api";
+import { useAuthStore } from "@/lib/auth-store";
+import { useScopeStore } from "@/lib/scope-store";
 import { NewRoutineForm } from "./new-routine";
 import { RoutineRow } from "./routine-row";
 
@@ -12,14 +14,17 @@ function today(): string {
 
 export default function RutinasPage() {
   const qc = useQueryClient();
+  const me = useAuthStore((s) => s.user);
+  const scope = useScopeStore((s) => s.scope);
+  const isCouple = scope === "couple";
   const [date] = useState(today());
 
   const instances = useQuery({
-    queryKey: ["routines", "instances", date],
+    queryKey: ["routines", "instances", date, scope],
     queryFn: () => api.routines.instances(date),
   });
   const all = useQuery({
-    queryKey: ["routines", "all"],
+    queryKey: ["routines", "all", scope],
     queryFn: () => api.routines.list(),
   });
 
@@ -27,19 +32,25 @@ export default function RutinasPage() {
     mutationFn: (input: { routine_id: string; due_on: string; status: "done" | "pending" | "skipped" }) =>
       api.routines.markLog(input),
     onMutate: async (input) => {
-      await qc.cancelQueries({ queryKey: ["routines", "instances", date] });
-      const prev = qc.getQueryData<typeof instances.data>(["routines", "instances", date]);
-      qc.setQueryData<typeof instances.data>(["routines", "instances", date], (old) =>
+      const key = ["routines", "instances", date, scope];
+      await qc.cancelQueries({ queryKey: key });
+      const prev = qc.getQueryData<RoutineInstance[]>(key);
+      qc.setQueryData<RoutineInstance[]>(key, (old) =>
         old?.map((i) =>
           i.routine.id === input.routine_id
-            ? { ...i, status: input.status }
+            ? {
+                ...i,
+                members: i.members.map((m) =>
+                  m.user_id === me?.id ? { ...m, status: input.status } : m,
+                ),
+              }
             : i,
         ),
       );
-      return { prev };
+      return { prev, key };
     },
     onError: (_e, _v, ctx) => {
-      if (ctx?.prev) qc.setQueryData(["routines", "instances", date], ctx.prev);
+      if (ctx?.prev && ctx?.key) qc.setQueryData(ctx.key, ctx.prev);
     },
     onSettled: () => {
       qc.invalidateQueries({ queryKey: ["routines"] });
@@ -47,66 +58,95 @@ export default function RutinasPage() {
   });
 
   const data = instances.data ?? [];
-  const doneCount = data.filter((i) => i.status === "done").length;
-  const total = data.length;
-  const pct = total === 0 ? 0 : Math.round((doneCount / total) * 100);
 
-  // Stroke dasharray para el anillo: circumferencia ≈ 2πr con r=25 → 157.08
+  // Para el ring: porcentaje del usuario actual (lo que importa visualmente)
+  const myProgress = useMemo(() => {
+    let done = 0;
+    let total = 0;
+    for (const inst of data) {
+      const mine = inst.members.find((m) => m.user_id === me?.id);
+      if (!mine) continue;
+      total++;
+      if (mine.status === "done") done++;
+    }
+    return { done, total, pct: total === 0 ? 0 : Math.round((done / total) * 100) };
+  }, [data, me]);
+
+  // En couple: progreso del partner
+  const partnerProgress = useMemo(() => {
+    if (!isCouple) return null;
+    let done = 0;
+    let total = 0;
+    let partnerName = "";
+    for (const inst of data) {
+      const partner = inst.members.find((m) => m.user_id !== me?.id);
+      if (!partner) continue;
+      partnerName = partner.user_name;
+      total++;
+      if (partner.status === "done") done++;
+    }
+    return {
+      name: partnerName,
+      done,
+      total,
+      pct: total === 0 ? 0 : Math.round((done / total) * 100),
+    };
+  }, [data, me, isCouple]);
+
   const RING_C = 157.08;
-  const dashOffset = RING_C - (RING_C * pct) / 100;
 
   return (
     <main className="mx-auto max-w-md px-5 pt-6 pb-32">
       <header className="mb-7">
-        <p className="eyebrow mb-1.5">Tus hábitos</p>
-        <h1 className="text-5xl font-light" style={{ fontFamily: "var(--font-serif)" }}>
+        <p className="eyebrow mb-1.5">
+          {isCouple ? "Hábitos compartidos" : "Tus hábitos"}
+        </p>
+        <h1
+          className="text-5xl font-light"
+          style={{ fontFamily: "var(--font-serif)" }}
+        >
           Rutinas
         </h1>
       </header>
 
-      {/* Ring de cumplimiento de hoy */}
-      <section className="card mb-6 flex items-center gap-4">
-        <div className="relative w-[72px] h-[72px] flex-shrink-0">
-          <svg viewBox="0 0 60 60" className="w-full h-full -rotate-90">
-            <circle
-              cx="30"
-              cy="30"
-              r="25"
-              fill="none"
-              stroke="var(--color-surface-2)"
-              strokeWidth="6"
+      {/* Ring(s) de cumplimiento */}
+      <section className="card mb-6">
+        <div
+          className={`flex items-center gap-4 ${
+            isCouple && partnerProgress ? "justify-around" : ""
+          }`}
+        >
+          <ProgressRing
+            done={myProgress.done}
+            total={myProgress.total}
+            pct={myProgress.pct}
+            color="var(--color-accent)"
+            label="Yo"
+            ringC={RING_C}
+          />
+          {isCouple && partnerProgress && partnerProgress.total > 0 && (
+            <ProgressRing
+              done={partnerProgress.done}
+              total={partnerProgress.total}
+              pct={partnerProgress.pct}
+              color="var(--color-jade)"
+              label={partnerProgress.name.split(" ")[0] ?? "Pareja"}
+              ringC={RING_C}
             />
-            <circle
-              cx="30"
-              cy="30"
-              r="25"
-              fill="none"
-              stroke="var(--color-accent)"
-              strokeWidth="6"
-              strokeLinecap="round"
-              strokeDasharray={RING_C}
-              strokeDashoffset={dashOffset}
-              style={{ transition: "stroke-dashoffset 400ms ease-out" }}
-            />
-          </svg>
-          <span className="absolute inset-0 grid place-items-center mono text-lg font-semibold">
-            {doneCount}/{total}
-          </span>
+          )}
         </div>
-        <div className="flex-1 min-w-0">
-          <p className="font-semibold">
-            {total === 0
-              ? "Sin rutinas para hoy"
-              : pct === 100
-                ? "¡Día completo! 🔥"
-                : `${pct}% de cumplimiento`}
+        {!isCouple && myProgress.total > 0 && (
+          <p className="text-center text-xs text-[color:var(--color-ink-faint)] mt-3">
+            {myProgress.pct === 100
+              ? "¡Día completo! 🔥"
+              : `${myProgress.total - myProgress.done} pendientes`}
           </p>
-          <p className="text-xs text-[color:var(--color-ink-faint)] mt-0.5">
-            {total === 0
-              ? "Crea una rutina abajo para empezar."
-              : `${total - doneCount} pendientes`}
+        )}
+        {isCouple && myProgress.pct === 100 && partnerProgress?.pct === 100 && (
+          <p className="text-center text-xs text-[color:var(--color-up)] font-semibold mt-3">
+            ¡Día completo juntos! 🔥
           </p>
-        </div>
+        )}
       </section>
 
       {/* Lista de hoy */}
@@ -127,16 +167,18 @@ export default function RutinasPage() {
         {instances.isLoading ? (
           <div className="card h-24 animate-pulse" />
         ) : data.length === 0 ? (
-          <div className="card text-center text-sm text-[color:var(--color-ink-faint)]">
-            Hoy no toca ninguna rutina activa.
+          <div className="card text-center text-sm text-[color:var(--color-ink-faint)] py-8">
+            {isCouple
+              ? "Sin rutinas compartidas para hoy. Crea una abajo."
+              : "Hoy no toca ninguna rutina activa."}
           </div>
         ) : (
-          <div className="card space-y-1">
+          <div className="card divide-y divide-[color:var(--color-line)]">
             {data.map((inst) => (
               <RoutineRow
                 key={inst.routine.id}
                 instance={inst}
-                onToggle={(nextStatus) =>
+                onToggle={(_userId, nextStatus) =>
                   markMut.mutate({
                     routine_id: inst.routine.id,
                     due_on: inst.due_on,
@@ -158,7 +200,7 @@ export default function RutinasPage() {
       <section>
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-semibold text-[color:var(--color-ink-soft)]">
-            Todas las rutinas
+            {isCouple ? "Rutinas compartidas" : "Todas las rutinas"}
           </h2>
           {all.data && (
             <span className="text-xs text-[color:var(--color-ink-faint)]">
@@ -170,7 +212,9 @@ export default function RutinasPage() {
           <div className="card h-20 animate-pulse" />
         ) : (all.data ?? []).length === 0 ? (
           <div className="card text-center text-sm text-[color:var(--color-ink-faint)]">
-            Sin rutinas todavía.
+            {isCouple
+              ? "Sin rutinas compartidas todavía."
+              : "Sin rutinas todavía."}
           </div>
         ) : (
           <div className="card space-y-2">
@@ -199,6 +243,61 @@ export default function RutinasPage() {
         )}
       </section>
     </main>
+  );
+}
+
+function ProgressRing({
+  done,
+  total,
+  pct,
+  color,
+  label,
+  ringC,
+}: {
+  done: number;
+  total: number;
+  pct: number;
+  color: string;
+  label: string;
+  ringC: number;
+}) {
+  const dashOffset = ringC - (ringC * pct) / 100;
+  return (
+    <div className="flex flex-col items-center gap-1.5">
+      <div className="relative w-[80px] h-[80px]">
+        <svg viewBox="0 0 60 60" className="w-full h-full -rotate-90">
+          <circle
+            cx="30"
+            cy="30"
+            r="25"
+            fill="none"
+            stroke="var(--color-surface-2)"
+            strokeWidth="6"
+          />
+          <circle
+            cx="30"
+            cy="30"
+            r="25"
+            fill="none"
+            stroke={color}
+            strokeWidth="6"
+            strokeLinecap="round"
+            strokeDasharray={ringC}
+            strokeDashoffset={dashOffset}
+            style={{ transition: "stroke-dashoffset 500ms ease-out" }}
+          />
+        </svg>
+        <span className="absolute inset-0 grid place-items-center mono text-base font-semibold">
+          {done}/{total}
+        </span>
+      </div>
+      <span
+        className="text-[11px] uppercase tracking-wider font-semibold"
+        style={{ color }}
+      >
+        {label}
+      </span>
+    </div>
   );
 }
 

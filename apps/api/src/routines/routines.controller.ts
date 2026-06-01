@@ -21,6 +21,7 @@ import {
   type UpdateRoutine,
 } from "@mi-centro/shared";
 import { CurrentUser, type AuthUser } from "../auth/auth.decorators";
+import { ScopeHeader, ScopeResolver } from "../common/scope";
 import { ZodValidationPipe } from "../common/zod.pipe";
 import { RoutinesService } from "./routines.service";
 
@@ -28,62 +29,77 @@ const YMD_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 @Controller("routines")
 export class RoutinesController {
-  constructor(private readonly svc: RoutinesService) {}
+  constructor(
+    private readonly svc: RoutinesService,
+    private readonly scopeResolver: ScopeResolver,
+  ) {}
 
   @Get()
-  list(@CurrentUser() user: AuthUser) {
-    return this.svc.list(user.id);
+  async list(@CurrentUser() user: AuthUser, @ScopeHeader() hdr: string) {
+    const scope = await this.scopeResolver.resolve(user.id, hdr);
+    return this.svc.list(user.id, scope);
   }
 
   @Post()
-  create(
+  async create(
     @CurrentUser() user: AuthUser,
+    @ScopeHeader() hdr: string,
     @Body(new ZodValidationPipe(CreateRoutineSchema)) body: CreateRoutine,
   ) {
-    return this.svc.create(user.id, body);
+    const scope = await this.scopeResolver.resolve(user.id, hdr);
+    return this.svc.create(user.id, scope, body);
   }
 
   @Patch(":id")
-  update(
+  async update(
     @CurrentUser() user: AuthUser,
+    @ScopeHeader() hdr: string,
     @Param("id", ParseUUIDPipe) id: string,
     @Body(new ZodValidationPipe(UpdateRoutineSchema)) body: UpdateRoutine,
   ) {
-    return this.svc.update(user.id, id, body);
+    const scope = await this.scopeResolver.resolve(user.id, hdr);
+    return this.svc.update(user.id, scope, id, body);
   }
 
   @Delete(":id")
   @HttpCode(HttpStatus.NO_CONTENT)
   async remove(
     @CurrentUser() user: AuthUser,
+    @ScopeHeader() hdr: string,
     @Param("id", ParseUUIDPipe) id: string,
   ) {
-    await this.svc.softDelete(user.id, id);
+    const scope = await this.scopeResolver.resolve(user.id, hdr);
+    await this.svc.softDelete(user.id, scope, id);
   }
 
-  /** Instancias del día: rutinas que caen ese día + su log si existe. */
   @Get("instances")
-  instances(@CurrentUser() user: AuthUser, @Query("date") date?: string) {
+  async instances(
+    @CurrentUser() user: AuthUser,
+    @ScopeHeader() hdr: string,
+    @Query("date") date?: string,
+  ) {
     const d = date ?? new Date().toISOString().slice(0, 10);
     if (!YMD_RE.test(d)) {
       throw new BadRequestException(`date inválido: ${d} (esperado YYYY-MM-DD)`);
     }
-    return this.svc.instancesForDate(user.id, d);
+    const scope = await this.scopeResolver.resolve(user.id, hdr);
+    return this.svc.instancesForDate(user.id, scope, d);
   }
 
-  /** Marcar cumplimiento (upsert por routine_id + due_on). */
   @Post("logs")
-  markLog(
+  async markLog(
     @CurrentUser() user: AuthUser,
+    @ScopeHeader() hdr: string,
     @Body(new ZodValidationPipe(MarkRoutineLogSchema)) body: MarkRoutineLog,
   ) {
-    return this.svc.markLog(user.id, body);
+    const scope = await this.scopeResolver.resolve(user.id, hdr);
+    return this.svc.markLog(user.id, scope, body);
   }
 
-  /** Stats en rango. Default: últimos 30 días incluyendo hoy. */
   @Get(":id/stats")
-  stats(
+  async stats(
     @CurrentUser() user: AuthUser,
+    @ScopeHeader() hdr: string,
     @Param("id", ParseUUIDPipe) id: string,
     @Query("from") from?: string,
     @Query("to") to?: string,
@@ -96,6 +112,7 @@ export class RoutinesController {
     if (!YMD_RE.test(f) || !YMD_RE.test(t)) {
       throw new BadRequestException("from/to en formato YYYY-MM-DD");
     }
-    return this.svc.stats(user.id, id, f, t);
+    const scope = await this.scopeResolver.resolve(user.id, hdr);
+    return this.svc.stats(user.id, scope, id, f, t);
   }
 }

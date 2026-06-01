@@ -15,6 +15,7 @@ export function toRoutine(r: typeof routines.$inferSelect): SharedRoutine {
   return {
     id: r.id,
     user_id: r.userId,
+    couple_id: r.coupleId ?? null,
     title: r.title,
     notes: r.notes,
     rrule: r.rrule,

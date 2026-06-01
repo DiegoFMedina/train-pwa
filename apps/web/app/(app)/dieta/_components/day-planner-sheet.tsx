@@ -104,8 +104,8 @@ function MealSlot({
   const [error, setError] = useState<string | null>(null);
 
   const suggestions = useQuery({
-    queryKey: ["dish-suggestions", mealType],
-    queryFn: () => api.dishes.suggestions(mealType),
+    queryKey: ["dish-suggestions", mealType, ymd],
+    queryFn: () => api.dishes.suggestions(mealType, ymd),
     enabled: expanded && !plan,
   });
 

@@ -201,6 +201,7 @@ export const routines = pgTable(
     userId: uuid("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
+    coupleId: uuid("couple_id"),
     title: varchar("title", { length: 120 }).notNull(),
     notes: text("notes"),
     rrule: text("rrule").notNull(),
@@ -247,8 +248,9 @@ export const routineLogs = pgTable(
       "routine_logs_status_check",
       sql`${t.status} IN ('pending','done','skipped','missed')`,
     ),
-    uniqueRoutineDay: uniqueIndex("routine_logs_routine_day_uq").on(
+    uniqueRoutineUserDay: uniqueIndex("routine_logs_routine_user_day_uq").on(
       t.routineId,
+      t.userId,
       t.dueOn,
     ),
     userDate: index("idx_rlog_user_date")

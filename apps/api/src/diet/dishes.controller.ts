@@ -43,9 +43,15 @@ export class DishesController {
   /**
    * Sugerencias para planificar: prioriza platos no usados hace tiempo.
    * Opcional ?meal_type para sesgar por tipo de comida.
+   * Opcional ?date=YYYY-MM-DD para excluir platos ya planeados en esa
+   * fecha+meal_type (evita sugerir lo mismo dos veces al mismo slot).
    */
   @Get("suggestions")
-  suggestions(@CurrentUser() user: AuthUser, @Query("meal_type") mealType?: string) {
+  suggestions(
+    @CurrentUser() user: AuthUser,
+    @Query("meal_type") mealType?: string,
+    @Query("date") date?: string,
+  ) {
     let mt: MealType | undefined;
     if (mealType) {
       const parsed = MealTypeSchema.safeParse(mealType);
@@ -54,7 +60,10 @@ export class DishesController {
       }
       mt = parsed.data;
     }
-    return this.svc.suggestions(user.id, mt);
+    if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      throw new BadRequestException(`date inválido: ${date}`);
+    }
+    return this.svc.suggestions(user.id, mt, date);
   }
 
   @Post()
