@@ -25,8 +25,22 @@ import type {
   User,
 } from "@mi-centro/shared";
 import { useAuthStore } from "./auth-store";
+import { useScopeStore } from "./scope-store";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001/api";
+
+/**
+ * Endpoints donde NO mandamos X-Scope (no aplica scope al concepto).
+ * Cualquier path bajo /auth, /me, /couples es siempre "del user actual".
+ */
+function isScopeAgnostic(path: string): boolean {
+  return (
+    path.startsWith("/auth/") ||
+    path.startsWith("/me") ||
+    path.startsWith("/couples") ||
+    path.startsWith("/health")
+  );
+}
 
 class ApiError extends Error {
   constructor(public status: number, public body: unknown, message: string) {
@@ -40,6 +54,9 @@ type FetchOpts = Omit<RequestInit, "body"> & { body?: unknown; skipAuth?: boolea
 async function request<T>(path: string, opts: FetchOpts = {}): Promise<T> {
   const { body, skipAuth, headers, ...rest } = opts;
   const token = skipAuth ? null : useAuthStore.getState().accessToken;
+  const scope = !isScopeAgnostic(path)
+    ? useScopeStore.getState().scope
+    : null;
 
   const init: RequestInit = {
     ...rest,
@@ -47,6 +64,7 @@ async function request<T>(path: string, opts: FetchOpts = {}): Promise<T> {
     headers: {
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(scope ? { "X-Scope": scope } : {}),
       ...(headers ?? {}),
     },
     body: body !== undefined ? JSON.stringify(body) : undefined,

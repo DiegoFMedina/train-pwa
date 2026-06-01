@@ -15,6 +15,7 @@ async function bootstrap() {
   app.enableCors({
     origin: corsOrigin.split(",").map((s) => s.trim()),
     credentials: true,
+    allowedHeaders: ["Content-Type", "Authorization", "X-Scope"],
   });
 
   app.use(cookieParser());

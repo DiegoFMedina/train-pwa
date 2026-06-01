@@ -19,11 +19,11 @@ import {
   type UpdateFinancialGoal,
 } from "@mi-centro/shared";
 import { CurrentUser, type AuthUser } from "../auth/auth.decorators";
+import { ScopeHeader, ScopeResolver } from "../common/scope";
 import { ZodValidationPipe } from "../common/zod.pipe";
 import { ContributionsService } from "./contributions.service";
 import { GoalsService } from "./goals.service";
 
-// El body de POST /goals/:id/contributions no requiere goal_id (viene del path).
 const CreateContributionBodySchema = CreateGoalContributionSchema.omit({
   goal_id: true,
 });
@@ -34,66 +34,80 @@ export class GoalsController {
   constructor(
     private readonly svc: GoalsService,
     private readonly contributions: ContributionsService,
+    private readonly scopeResolver: ScopeResolver,
   ) {}
 
   @Get()
-  list(@CurrentUser() user: AuthUser) {
-    return this.svc.list(user.id);
+  async list(@CurrentUser() user: AuthUser, @ScopeHeader() hdr: string) {
+    const scope = await this.scopeResolver.resolve(user.id, hdr);
+    return this.svc.list(user.id, scope);
   }
 
   @Post()
-  create(
+  async create(
     @CurrentUser() user: AuthUser,
+    @ScopeHeader() hdr: string,
     @Body(new ZodValidationPipe(CreateFinancialGoalSchema)) body: CreateFinancialGoal,
   ) {
-    return this.svc.create(user.id, body);
+    const scope = await this.scopeResolver.resolve(user.id, hdr);
+    return this.svc.create(user.id, scope, body);
   }
 
   @Patch(":id")
-  update(
+  async update(
     @CurrentUser() user: AuthUser,
+    @ScopeHeader() hdr: string,
     @Param("id", ParseUUIDPipe) id: string,
     @Body(new ZodValidationPipe(UpdateFinancialGoalSchema)) body: UpdateFinancialGoal,
   ) {
-    return this.svc.update(user.id, id, body);
+    const scope = await this.scopeResolver.resolve(user.id, hdr);
+    return this.svc.update(user.id, scope, id, body);
   }
 
   @Delete(":id")
   @HttpCode(HttpStatus.NO_CONTENT)
   async remove(
     @CurrentUser() user: AuthUser,
+    @ScopeHeader() hdr: string,
     @Param("id", ParseUUIDPipe) id: string,
   ) {
-    await this.svc.softDelete(user.id, id);
+    const scope = await this.scopeResolver.resolve(user.id, hdr);
+    await this.svc.softDelete(user.id, scope, id);
   }
 
-  // ─── sub-recurso contributions ─────────────────────────────
+  // ─── Contributions ────────────────────────────────────────
 
   @Get(":id/contributions")
-  listContributions(
+  async listContributions(
     @CurrentUser() user: AuthUser,
+    @ScopeHeader() hdr: string,
     @Param("id", ParseUUIDPipe) goalId: string,
   ) {
-    return this.contributions.listForGoal(user.id, goalId);
+    const scope = await this.scopeResolver.resolve(user.id, hdr);
+    return this.contributions.listForGoal(user.id, scope, goalId);
   }
 
   @Post(":id/contributions")
-  addContribution(
+  async addContribution(
     @CurrentUser() user: AuthUser,
+    @ScopeHeader() hdr: string,
     @Param("id", ParseUUIDPipe) goalId: string,
     @Body(new ZodValidationPipe(CreateContributionBodySchema))
     body: CreateContributionBody,
   ) {
-    return this.contributions.create(user.id, goalId, body);
+    const scope = await this.scopeResolver.resolve(user.id, hdr);
+    return this.contributions.create(user.id, scope, goalId, body);
   }
 
   @Delete(":id/contributions/:contributionId")
   @HttpCode(HttpStatus.NO_CONTENT)
   async removeContribution(
     @CurrentUser() user: AuthUser,
+    @ScopeHeader() hdr: string,
     @Param("id", ParseUUIDPipe) goalId: string,
     @Param("contributionId", ParseUUIDPipe) contributionId: string,
   ) {
-    await this.contributions.softDelete(user.id, goalId, contributionId);
+    const scope = await this.scopeResolver.resolve(user.id, hdr);
+    await this.contributions.softDelete(user.id, scope, goalId, contributionId);
   }
 }

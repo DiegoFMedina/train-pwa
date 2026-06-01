@@ -4,6 +4,7 @@ import type {
   CreateGoalContribution,
   GoalContribution,
 } from "@mi-centro/shared";
+import type { RequestScope } from "../common/scope";
 import { DB, type Db } from "../db/db.module";
 import { goalContributions } from "../db/schema";
 import { GoalsService } from "./goals.service";
@@ -18,15 +19,16 @@ export class ContributionsService {
 
   async listForGoal(
     userId: string,
+    scope: RequestScope,
     goalId: string,
   ): Promise<GoalContribution[]> {
-    await this.goals.ensureExists(userId, goalId);
+    // Valida que el goal sea accesible para este scope.
+    await this.goals.ensureExists(userId, scope, goalId);
     const rows = await this.db
       .select()
       .from(goalContributions)
       .where(
         and(
-          eq(goalContributions.userId, userId),
           eq(goalContributions.goalId, goalId),
           isNull(goalContributions.deletedAt),
         ),
@@ -37,10 +39,11 @@ export class ContributionsService {
 
   async create(
     userId: string,
+    scope: RequestScope,
     goalId: string,
     input: Omit<CreateGoalContribution, "goal_id">,
   ): Promise<GoalContribution> {
-    await this.goals.ensureExists(userId, goalId);
+    await this.goals.ensureExists(userId, scope, goalId);
     const [row] = await this.db
       .insert(goalContributions)
       .values({
@@ -58,9 +61,11 @@ export class ContributionsService {
 
   async softDelete(
     userId: string,
+    scope: RequestScope,
     goalId: string,
     id: string,
   ): Promise<void> {
+    await this.goals.ensureExists(userId, scope, goalId);
     const [row] = await this.db
       .update(goalContributions)
       .set({ deletedAt: new Date(), updatedAt: new Date() })
@@ -68,7 +73,6 @@ export class ContributionsService {
         and(
           eq(goalContributions.id, id),
           eq(goalContributions.goalId, goalId),
-          eq(goalContributions.userId, userId),
           isNull(goalContributions.deletedAt),
         ),
       )

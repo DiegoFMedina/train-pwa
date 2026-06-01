@@ -24,6 +24,7 @@ export function toCategory(r: typeof categories.$inferSelect): SharedCategory {
   return {
     id: r.id,
     user_id: r.userId,
+    couple_id: r.coupleId ?? null,
     name: r.name,
     kind: r.kind as SharedCategory["kind"],
     color: r.color,
@@ -41,6 +42,7 @@ export function toTransaction(
   return {
     id: r.id,
     user_id: r.userId,
+    couple_id: r.coupleId ?? null,
     category_id: r.categoryId,
     kind: r.kind as SharedTransaction["kind"],
     amount: num(r.amount),
@@ -61,6 +63,7 @@ export function toRecurring(
   return {
     id: r.id,
     user_id: r.userId,
+    couple_id: r.coupleId ?? null,
     category_id: r.categoryId,
     kind: r.kind as SharedRecurring["kind"],
     amount: num(r.amount),
@@ -80,6 +83,7 @@ export function toGoal(r: typeof financialGoals.$inferSelect): SharedGoal {
   return {
     id: r.id,
     user_id: r.userId,
+    couple_id: r.coupleId ?? null,
     name: r.name,
     target_amount: num(r.targetAmount),
     currency: r.currency,

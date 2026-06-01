@@ -6,7 +6,7 @@ interface ComingSoonProps {
 
 export function ComingSoon({ title, phase, description }: ComingSoonProps) {
   return (
-    <main className="mx-auto max-w-md min-h-dvh px-5 pt-10 pb-32">
+    <main className="mx-auto max-w-md min-h-dvh px-5 pt-16 pb-32">
       <header className="mb-8">
         <p className="eyebrow mb-1.5">{phase}</p>
         <h1 className="text-5xl font-light" style={{ fontFamily: "var(--font-serif)" }}>

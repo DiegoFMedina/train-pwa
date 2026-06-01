@@ -55,7 +55,7 @@ export default function PerfilPage() {
   const initial = (user.name[0] ?? "?").toUpperCase();
 
   return (
-    <main className="mx-auto max-w-md min-h-dvh px-5 pt-10 pb-32">
+    <main className="mx-auto max-w-md min-h-dvh px-5 pt-16 pb-32">
       <header className="mb-7">
         <p className="eyebrow mb-1.5">Tu cuenta</p>
         <h1 className="text-5xl font-light" style={{ fontFamily: "var(--font-serif)" }}>

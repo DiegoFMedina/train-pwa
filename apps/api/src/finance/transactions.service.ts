@@ -1,27 +1,43 @@
 import { Inject, Injectable, NotFoundException } from "@nestjs/common";
-import { and, desc, eq, gte, isNull, lte } from "drizzle-orm";
+import { and, desc, eq, gte, isNull, lte, type SQL } from "drizzle-orm";
 import type {
   CreateTransaction,
   Transaction,
   TransactionFilter,
   UpdateTransaction,
 } from "@mi-centro/shared";
+import type { RequestScope } from "../common/scope";
 import { DB, type Db } from "../db/db.module";
 import { transactions } from "../db/schema";
 import { toTransaction } from "./mappers";
+
+function scopeCondition(userId: string, scope: RequestScope): SQL | undefined {
+  if (scope.kind === "personal") {
+    return and(
+      eq(transactions.userId, userId),
+      isNull(transactions.coupleId),
+    );
+  }
+  return eq(transactions.coupleId, scope.coupleId!);
+}
 
 @Injectable()
 export class TransactionsService {
   constructor(@Inject(DB) private readonly db: Db) {}
 
-  async list(userId: string, filter: TransactionFilter): Promise<Transaction[]> {
-    const conditions = [
-      eq(transactions.userId, userId),
+  async list(
+    userId: string,
+    scope: RequestScope,
+    filter: TransactionFilter,
+  ): Promise<Transaction[]> {
+    const conditions: Array<SQL | undefined> = [
+      scopeCondition(userId, scope),
       isNull(transactions.deletedAt),
     ];
     if (filter.from) conditions.push(gte(transactions.occurredOn, filter.from));
     if (filter.to) conditions.push(lte(transactions.occurredOn, filter.to));
-    if (filter.category_id) conditions.push(eq(transactions.categoryId, filter.category_id));
+    if (filter.category_id)
+      conditions.push(eq(transactions.categoryId, filter.category_id));
     if (filter.kind) conditions.push(eq(transactions.kind, filter.kind));
 
     const rows = await this.db
@@ -32,12 +48,17 @@ export class TransactionsService {
     return rows.map(toTransaction);
   }
 
-  async create(userId: string, input: CreateTransaction): Promise<Transaction> {
+  async create(
+    userId: string,
+    scope: RequestScope,
+    input: CreateTransaction,
+  ): Promise<Transaction> {
     const [row] = await this.db
       .insert(transactions)
       .values({
         ...(input.id ? { id: input.id } : {}),
         userId,
+        coupleId: scope.coupleId,
         categoryId: input.category_id ?? null,
         kind: input.kind,
         amount: input.amount.toFixed(2),
@@ -53,6 +74,7 @@ export class TransactionsService {
 
   async update(
     userId: string,
+    scope: RequestScope,
     id: string,
     patch: UpdateTransaction,
   ): Promise<Transaction> {
@@ -61,12 +83,14 @@ export class TransactionsService {
     if (patch.kind !== undefined) updates.kind = patch.kind;
     if (patch.amount !== undefined) updates.amount = patch.amount.toFixed(2);
     if (patch.currency !== undefined) updates.currency = patch.currency;
-    if (patch.description !== undefined) updates.description = patch.description;
+    if (patch.description !== undefined)
+      updates.description = patch.description;
     if (patch.occurred_on !== undefined) updates.occurredOn = patch.occurred_on;
-    if (patch.recurring_id !== undefined) updates.recurringId = patch.recurring_id;
+    if (patch.recurring_id !== undefined)
+      updates.recurringId = patch.recurring_id;
 
     if (Object.keys(updates).length === 0) {
-      return this.findById(userId, id);
+      return this.findById(userId, scope, id);
     }
     updates.updatedAt = new Date();
 
@@ -76,7 +100,7 @@ export class TransactionsService {
       .where(
         and(
           eq(transactions.id, id),
-          eq(transactions.userId, userId),
+          scopeCondition(userId, scope),
           isNull(transactions.deletedAt),
         ),
       )
@@ -85,14 +109,18 @@ export class TransactionsService {
     return toTransaction(row);
   }
 
-  async softDelete(userId: string, id: string): Promise<void> {
+  async softDelete(
+    userId: string,
+    scope: RequestScope,
+    id: string,
+  ): Promise<void> {
     const [row] = await this.db
       .update(transactions)
       .set({ deletedAt: new Date(), updatedAt: new Date() })
       .where(
         and(
           eq(transactions.id, id),
-          eq(transactions.userId, userId),
+          scopeCondition(userId, scope),
           isNull(transactions.deletedAt),
         ),
       )
@@ -100,14 +128,18 @@ export class TransactionsService {
     if (!row) throw new NotFoundException("Movimiento no encontrado");
   }
 
-  private async findById(userId: string, id: string): Promise<Transaction> {
+  private async findById(
+    userId: string,
+    scope: RequestScope,
+    id: string,
+  ): Promise<Transaction> {
     const [row] = await this.db
       .select()
       .from(transactions)
       .where(
         and(
           eq(transactions.id, id),
-          eq(transactions.userId, userId),
+          scopeCondition(userId, scope),
           isNull(transactions.deletedAt),
         ),
       )

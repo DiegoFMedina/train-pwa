@@ -35,7 +35,7 @@ export default function FinanzasPage() {
     : 0;
 
   return (
-    <main className="mx-auto max-w-md min-h-dvh px-5 pt-10 pb-32">
+    <main className="mx-auto max-w-md min-h-dvh px-5 pt-16 pb-32">
       <header className="mb-7">
         <p className="eyebrow mb-1.5">
           {new Date().toLocaleDateString("es-CL", { month: "long", year: "numeric" })}

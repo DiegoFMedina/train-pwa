@@ -20,45 +20,57 @@ import {
   type UpdateTransaction,
 } from "@mi-centro/shared";
 import { CurrentUser, type AuthUser } from "../auth/auth.decorators";
+import { ScopeHeader, ScopeResolver } from "../common/scope";
 import { ZodValidationPipe } from "../common/zod.pipe";
 import { TransactionsService } from "./transactions.service";
 
 @Controller("transactions")
 export class TransactionsController {
-  constructor(private readonly svc: TransactionsService) {}
+  constructor(
+    private readonly svc: TransactionsService,
+    private readonly scopeResolver: ScopeResolver,
+  ) {}
 
   @Get()
-  list(
+  async list(
     @CurrentUser() user: AuthUser,
+    @ScopeHeader() hdr: string,
     @Query(new ZodValidationPipe(TransactionFilterSchema, { applyTo: ["query"] }))
     filter: TransactionFilter,
   ) {
-    return this.svc.list(user.id, filter);
+    const scope = await this.scopeResolver.resolve(user.id, hdr);
+    return this.svc.list(user.id, scope, filter);
   }
 
   @Post()
-  create(
+  async create(
     @CurrentUser() user: AuthUser,
+    @ScopeHeader() hdr: string,
     @Body(new ZodValidationPipe(CreateTransactionSchema)) body: CreateTransaction,
   ) {
-    return this.svc.create(user.id, body);
+    const scope = await this.scopeResolver.resolve(user.id, hdr);
+    return this.svc.create(user.id, scope, body);
   }
 
   @Patch(":id")
-  update(
+  async update(
     @CurrentUser() user: AuthUser,
+    @ScopeHeader() hdr: string,
     @Param("id", ParseUUIDPipe) id: string,
     @Body(new ZodValidationPipe(UpdateTransactionSchema)) body: UpdateTransaction,
   ) {
-    return this.svc.update(user.id, id, body);
+    const scope = await this.scopeResolver.resolve(user.id, hdr);
+    return this.svc.update(user.id, scope, id, body);
   }
 
   @Delete(":id")
   @HttpCode(HttpStatus.NO_CONTENT)
   async remove(
     @CurrentUser() user: AuthUser,
+    @ScopeHeader() hdr: string,
     @Param("id", ParseUUIDPipe) id: string,
   ) {
-    await this.svc.softDelete(user.id, id);
+    const scope = await this.scopeResolver.resolve(user.id, hdr);
+    await this.svc.softDelete(user.id, scope, id);
   }
 }

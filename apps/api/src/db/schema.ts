@@ -70,6 +70,7 @@ export const categories = pgTable(
     userId: uuid("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
+    coupleId: uuid("couple_id"),
     name: varchar("name", { length: 80 }).notNull(),
     kind: varchar("kind", { length: 10 }).notNull(),
     color: varchar("color", { length: 7 }),
@@ -92,6 +93,7 @@ export const recurringTransactions = pgTable("recurring_transactions", {
   userId: uuid("user_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
+  coupleId: uuid("couple_id"),
   categoryId: uuid("category_id").references(() => categories.id, {
     onDelete: "set null",
   }),
@@ -115,6 +117,7 @@ export const transactions = pgTable(
     userId: uuid("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
+    coupleId: uuid("couple_id"),
     categoryId: uuid("category_id").references(() => categories.id, {
       onDelete: "set null",
     }),
@@ -150,6 +153,7 @@ export const financialGoals = pgTable(
     userId: uuid("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
+    coupleId: uuid("couple_id"),
     name: varchar("name", { length: 120 }).notNull(),
     targetAmount: numeric("target_amount", { precision: 14, scale: 2 }).notNull(),
     currency: char("currency", { length: 3 }).notNull().default("CLP"),

@@ -1,11 +1,12 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { and, eq, gte, isNull, lt, sql } from "drizzle-orm";
+import { and, eq, gte, isNull, lt, sql, type SQL } from "drizzle-orm";
+import type { RequestScope } from "../common/scope";
 import { DB, type Db } from "../db/db.module";
 import { categories, transactions } from "../db/schema";
 
 export interface MonthlySummary {
-  month: string; // YYYY-MM
-  range: { from: string; to: string }; // [from, to) — exclusivo
+  month: string;
+  range: { from: string; to: string };
   income: number;
   expense: number;
   balance: number;
@@ -19,15 +20,29 @@ export interface MonthlySummary {
   }>;
 }
 
+function scopeCondition(userId: string, scope: RequestScope): SQL | undefined {
+  if (scope.kind === "personal") {
+    return and(
+      eq(transactions.userId, userId),
+      isNull(transactions.coupleId),
+    );
+  }
+  return eq(transactions.coupleId, scope.coupleId!);
+}
+
 @Injectable()
 export class SummaryService {
   constructor(@Inject(DB) private readonly db: Db) {}
 
-  async monthly(userId: string, month: string): Promise<MonthlySummary> {
+  async monthly(
+    userId: string,
+    scope: RequestScope,
+    month: string,
+  ): Promise<MonthlySummary> {
     const { from, to } = monthRange(month);
 
     const where = and(
-      eq(transactions.userId, userId),
+      scopeCondition(userId, scope),
       isNull(transactions.deletedAt),
       gte(transactions.occurredOn, from),
       lt(transactions.occurredOn, to),
@@ -77,7 +92,6 @@ export class SummaryService {
   }
 }
 
-// Devuelve [from, to) en formato YYYY-MM-DD para un mes YYYY-MM (UTC).
 function monthRange(month: string): { from: string; to: string } {
   const m = /^(\d{4})-(\d{2})$/.exec(month);
   if (!m) {

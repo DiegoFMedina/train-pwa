@@ -20,6 +20,7 @@ export const CategoryBaseSchema = z.object({
 
 export const CategorySchema = CategoryBaseSchema.merge(SyncFieldsSchema).extend({
   user_id: UuidSchema,
+  couple_id: UuidSchema.nullable(),
 });
 export type Category = z.infer<typeof CategorySchema>;
 
@@ -45,6 +46,7 @@ export const TransactionBaseSchema = z.object({
 
 export const TransactionSchema = TransactionBaseSchema.merge(SyncFieldsSchema).extend({
   user_id: UuidSchema,
+  couple_id: UuidSchema.nullable(),
 });
 export type Transaction = z.infer<typeof TransactionSchema>;
 
@@ -79,7 +81,7 @@ export const RecurringTransactionBaseSchema = z.object({
 
 export const RecurringTransactionSchema = RecurringTransactionBaseSchema
   .merge(SyncFieldsSchema)
-  .extend({ user_id: UuidSchema });
+  .extend({ user_id: UuidSchema, couple_id: UuidSchema.nullable() });
 export type RecurringTransaction = z.infer<typeof RecurringTransactionSchema>;
 
 export const CreateRecurringTransactionSchema = RecurringTransactionBaseSchema.extend({
@@ -105,7 +107,7 @@ export const FinancialGoalBaseSchema = z.object({
 
 export const FinancialGoalSchema = FinancialGoalBaseSchema
   .merge(SyncFieldsSchema)
-  .extend({ user_id: UuidSchema });
+  .extend({ user_id: UuidSchema, couple_id: UuidSchema.nullable() });
 export type FinancialGoal = z.infer<typeof FinancialGoalSchema>;
 
 export const CreateFinancialGoalSchema = FinancialGoalBaseSchema.extend({
