@@ -1,10 +1,31 @@
 import type { Metadata, Viewport } from "next";
 import { Providers } from "./providers";
+import { ServiceWorkerRegistrar } from "./sw-register";
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Mi Centro",
-  description: "Finanzas, rutinas y dieta — en un solo lugar.",
+  description: "Finanzas, rutinas y dieta — tu control personal.",
+  applicationName: "Mi Centro",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Mi Centro",
+  },
+  icons: {
+    icon: [
+      { url: "/favicon.png", type: "image/png" },
+      { url: "/icon.svg", type: "image/svg+xml" },
+    ],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180" }],
+  },
+  formatDetection: {
+    telephone: false,
+    email: false,
+    address: false,
+    date: false,
+  },
 };
 
 export const viewport: Viewport = {
@@ -13,6 +34,7 @@ export const viewport: Viewport = {
   maximumScale: 1,
   userScalable: false,
   themeColor: "#100c0a",
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
@@ -32,6 +54,7 @@ export default function RootLayout({
       </head>
       <body className="antialiased">
         <Providers>{children}</Providers>
+        <ServiceWorkerRegistrar />
       </body>
     </html>
   );

@@ -5,6 +5,7 @@ import { useState } from "react";
 import { api } from "@/lib/api";
 import { currentMonth, money } from "@/lib/format";
 import { CategoriesSheet } from "./categories-sheet";
+import { GoalsSection } from "./goals-section";
 import { NewTransactionForm } from "./new-transaction";
 import { TransactionItem } from "./transaction-item";
 
@@ -144,6 +145,9 @@ export default function FinanzasPage() {
           </div>
         </section>
       )}
+
+      {/* Metas */}
+      <GoalsSection />
 
       {/* New transaction */}
       <section className="mb-6">

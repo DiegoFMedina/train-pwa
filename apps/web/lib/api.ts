@@ -1,11 +1,14 @@
 import type {
   AuthResponse,
   Category,
+  CreateFinancialGoal,
   CreateMealPlan,
   CreateRoutine,
   CreateTransaction,
   Dish,
   DishIngredient,
+  FinancialGoal,
+  GoalContribution,
   LoginRequest,
   MealPlan,
   MealType,
@@ -188,6 +191,31 @@ export const api = {
       request<MonthlySummary>(
         `/finance/summary${month ? `?month=${month}` : ""}`,
       ),
+  },
+  goals: {
+    list: () => request<FinancialGoal[]>("/goals"),
+    create: (body: CreateFinancialGoal) =>
+      request<FinancialGoal>("/goals", { method: "POST", body }),
+    update: (
+      id: string,
+      body: {
+        name?: string;
+        target_amount?: number;
+        target_date?: string | null;
+        status?: "active" | "achieved" | "archived";
+      },
+    ) => request<FinancialGoal>(`/goals/${id}`, { method: "PATCH", body }),
+    remove: (id: string) => request<void>(`/goals/${id}`, { method: "DELETE" }),
+    listContributions: (id: string) =>
+      request<GoalContribution[]>(`/goals/${id}/contributions`),
+    addContribution: (
+      id: string,
+      body: { amount: number; occurred_on: string; note?: string | null },
+    ) =>
+      request<GoalContribution>(`/goals/${id}/contributions`, {
+        method: "POST",
+        body,
+      }),
   },
   routines: {
     list: () => request<Routine[]>("/routines"),
