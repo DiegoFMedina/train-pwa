@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { InstallPrompt } from "./install-prompt";
 import { Providers } from "./providers";
 import { ServiceWorkerRegistrar } from "./sw-register";
 import "./globals.css";
@@ -53,7 +54,10 @@ export default function RootLayout({
         />
       </head>
       <body className="antialiased">
-        <Providers>{children}</Providers>
+        <Providers>
+          {children}
+          <InstallPrompt />
+        </Providers>
         <ServiceWorkerRegistrar />
       </body>
     </html>

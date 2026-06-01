@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { useAuthStore } from "@/lib/auth-store";
 import { BottomNav } from "./_components/bottom-nav";
+import { UserAvatarButton } from "./_components/user-avatar-button";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -17,6 +18,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <>
+      <UserAvatarButton />
       {children}
       <BottomNav />
     </>

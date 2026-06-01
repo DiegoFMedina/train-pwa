@@ -144,6 +144,14 @@ export const api = {
   },
   me: {
     get: () => request<User>("/me"),
+    patch: (body: {
+      timezone?: string;
+      language?: "es" | "en";
+      theme?: "light" | "dark" | "system";
+      default_currency?: string;
+      quiet_hours_start?: string | null;
+      quiet_hours_end?: string | null;
+    }) => request<User>("/me", { method: "PATCH", body }),
   },
   categories: {
     list: () => request<Category[]>("/categories"),
